@@ -6,7 +6,7 @@ from crawlers.financial_crawler import FinancialCrawler
 from crawlers.kline_crawler import KlineCrawler
 from engine.logger import logger
 from engine.database import DataRepository
-from engine.settings import Config
+from config.settings import Config
 
 
 class CrawlerService:

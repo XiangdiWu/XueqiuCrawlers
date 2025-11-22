@@ -3,7 +3,7 @@
 """
 import logging
 import os
-from engine.settings import Config
+from config.settings import Config
 
 
 def setup_logger(name, log_file=None):

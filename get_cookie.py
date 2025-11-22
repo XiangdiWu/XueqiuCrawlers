@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-处理Cookie文件
-读取cookie_input.txt中的Cookie字符串并保存
+获取雪球Cookie
+
+1、cookie_input.txt中手动配置Cookie字符串
+2、读取、处理并保存Cookie
 """
 
 import os

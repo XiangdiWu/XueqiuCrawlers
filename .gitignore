@@ -218,7 +218,6 @@ data/backup/
 cache/
 temp/
 tmp/
-雪球.html
 
 # Sensitive configuration files
 config/cookies.json

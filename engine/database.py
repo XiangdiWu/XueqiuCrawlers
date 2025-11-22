@@ -4,7 +4,7 @@
 import pymysql
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
-from engine.settings import Config
+from config.settings import Config
 from engine.logger import get_logger
 
 logger = get_logger(__name__)
@@ -200,7 +200,7 @@ class DataRepository:
     """统一数据仓库接口，支持数据库和CSV存储"""
     
     def __init__(self, storage_type: str = None):
-        from engine.settings import Config
+        from config.settings import Config
         
         # 确定存储类型
         if storage_type is None:

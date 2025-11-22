@@ -4,7 +4,7 @@
 import time
 import requests
 from engine.logger import logger
-from engine.settings import Config
+from config.settings import Config
 from engine.xueqiu_auth import get_authenticated_session
 
 

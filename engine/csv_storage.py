@@ -235,7 +235,7 @@ class CSVStorage:
             bool: 是否成功
         """
         try:
-            from engine.settings import Config
+            from config.settings import Config
             backup_config = Config.STORAGE_CONFIG
             backup_path = backup_config.get('backup_path', 'data/backup')
             
