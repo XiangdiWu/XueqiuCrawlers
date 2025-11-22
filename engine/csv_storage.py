@@ -1138,3 +1138,214 @@ class CSVStorage:
         except Exception as e:
             logger.error(f"读取最新股票列表失败: {e}")
             return []
+    
+    def get_kline_data_by_date(self, date_str: str = None) -> List[Dict[str, Any]]:
+        """
+        根据日期获取K线数据
+        
+        Args:
+            date_str: 日期字符串，格式YYYY-MM-DD，默认为今天
+            
+        Returns:
+            List[Dict]: K线数据列表
+        """
+        try:
+            if date_str is None:
+                date_str = datetime.now().strftime('%Y-%m-%d')
+            
+            filepath = self.get_kline_filepath_by_date(date_str)
+            
+            if not os.path.exists(filepath):
+                logger.warning(f"K线数据文件不存在: {filepath}")
+                return []
+            
+            data = []
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    data.append(dict(row))
+            
+            logger.info(f"从 {filepath} 读取了 {len(data)} 条K线数据")
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取K线数据失败: {e}")
+            return []
+    
+    def get_financial_statement_filepath(self, symbol: str, statement_type: str) -> str:
+        """
+        获取财务报表文件路径
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型 ('income', 'balance', 'cash')
+            
+        Returns:
+            str: 文件路径
+        """
+        # 确保目录存在
+        statements_dir = os.path.join(self.csv_path, 'financial_statements')
+        os.makedirs(statements_dir, exist_ok=True)
+        
+        # 构建文件名
+        filename = f"{symbol}_{statement_type}.csv"
+        return os.path.join(statements_dir, filename)
+    
+    def save_financial_statement(self, symbol: str, statement_type: str, statement_data: List[Dict[str, Any]]) -> bool:
+        """
+        保存财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型
+            statement_data: 财务报表数据列表
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            if not statement_data:
+                logger.warning(f"没有{symbol}的{statement_type}报表数据需要保存")
+                return False
+            
+            filepath = self.get_financial_statement_filepath(symbol, statement_type)
+            
+            # 检查文件是否存在
+            file_exists = os.path.exists(filepath)
+            
+            # 获取字段名
+            fieldnames = list(statement_data[0].keys())
+            
+            with open(filepath, 'a', newline='', encoding=self.encoding) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                
+                # 如果文件不存在，写入表头
+                if not file_exists:
+                    writer.writeheader()
+                
+                # 写入数据
+                writer.writerows(statement_data)
+            
+            logger.info(f"成功保存 {len(statement_data)} 条{statement_type}报表数据到 {filepath}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存财务报表失败 {symbol} {statement_type}: {e}")
+            return False
+    
+    def get_financial_statement_log_filepath(self) -> str:
+        """获取财务报表日志文件路径"""
+        log_dir = os.path.join(self.csv_path, 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        return os.path.join(log_dir, 'financial_statements_log.csv')
+    
+    def save_financial_statement_log(self, log_data: Dict[str, Any]) -> bool:
+        """
+        保存财务报表处理日志
+        
+        Args:
+            log_data: 日志数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            filepath = self.get_financial_statement_log_filepath()
+            
+            # 检查文件是否存在
+            file_exists = os.path.exists(filepath)
+            
+            # 获取字段名
+            fieldnames = ['symbol', 'statement_type', 'report_date', 'timestamp']
+            
+            with open(filepath, 'a', newline='', encoding=self.encoding) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                
+                # 如果文件不存在，写入表头
+                if not file_exists:
+                    writer.writeheader()
+                
+                # 写入数据
+                writer.writerow(log_data)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存财务报表日志失败: {e}")
+            return False
+    
+    def get_financial_statement_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取财务报表处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            filepath = self.get_financial_statement_log_filepath()
+            
+            if not os.path.exists(filepath):
+                return []
+            
+            data = []
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    data.append(dict(row))
+            
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取财务报表日志失败: {e}")
+            return []
+    
+    def get_financial_statement_data(self, symbol: str, statement_type: str) -> List[Dict[str, Any]]:
+        """
+        获取指定股票的财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型
+            
+        Returns:
+            List[Dict]: 财务报表数据列表
+        """
+        try:
+            filepath = self.get_financial_statement_filepath(symbol, statement_type)
+            
+            if not os.path.exists(filepath):
+                logger.warning(f"财务报表文件不存在: {filepath}")
+                return []
+            
+            data = []
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    data.append(dict(row))
+            
+            logger.info(f"从 {filepath} 读取了 {len(data)} 条{statement_type}报表数据")
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取财务报表数据失败: {e}")
+            return []
+    
+    def get_all_financial_statements(self, symbol: str) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        获取股票的所有财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            
+        Returns:
+            Dict[str, List[Dict]]]: 包含三张报表数据的字典
+        """
+        statements = {}
+        statement_types = ['income', 'balance', 'cash']
+        
+        for stmt_type in statement_types:
+            data = self.get_financial_statement_data(symbol, stmt_type)
+            if data:
+                statements[stmt_type] = data
+        
+        return statements

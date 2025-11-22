@@ -21,6 +21,7 @@ from crawlers.stock_info_crawler import StockInfoCrawler
 from crawlers.kline_crawler import KlineCrawler
 from crawlers.company_info_crawler import CompanyInfoCrawler
 from crawlers.financial_crawler import FinancialCrawler
+from crawlers.financial_statements_crawler import FinancialStatementsCrawler
 from engine.database import DataRepository
 from engine.xueqiu_auth import get_auth
 
@@ -75,7 +76,8 @@ def show_menu():
     print("3. 创建股票列表（简化字段，不必需）")
     print("4. 爬取日频K线数据（按日期存储）")
     print("5. 爬取财务数据（按证券代码存储）")
-    print("6. 爬取所有数据")
+    print("6. 爬取财务报表（三表完整数据）")
+    print("7. 爬取所有数据")
     print("0. 退出")
     print("="*50)
 
@@ -302,10 +304,147 @@ def create_stock_list():
 
 def crawl_kline_data():
     """爬取K线数据（按日期存储）"""
-    print("\n📊 开始爬取K线数据（按日期存储）...")
-    crawler = KlineCrawler(DataRepository())
-    crawler.crawl_kline_data('after')
-    print("✅ K线数据爬取完成！")
+    print("\n📊 K线数据爬取选项")
+    print("=" * 40)
+    print("1. 爬取所有股票K线数据（后复权）")
+    print("2. 爬取所有股票K线数据（前复权）")
+    print("3. 爬取所有股票K线数据（不复权）")
+    print("4. 爬取指定数量股票K线数据")
+    print("5. 爬取单只股票K线数据")
+    print("6. 恢复爬取（只处理未完成的股票）")
+    print("7. 🆕 爬取全市场股票某日数据")
+    print("8. 查看K线数据")
+    print("9. 查看处理进度")
+    print("0. 返回主菜单")
+    
+    choice = input("\n请选择 (0-9): ").strip()
+    
+    if choice == '0':
+        return
+    elif choice == '1':
+        print("\n📊 开始爬取所有股票K线数据（后复权）...")
+        crawler = KlineCrawler(DataRepository())
+        crawler.crawl_kline_data('after')
+        print("✅ K线数据爬取完成！")
+    elif choice == '2':
+        print("\n📊 开始爬取所有股票K线数据（前复权）...")
+        crawler = KlineCrawler(DataRepository())
+        crawler.crawl_kline_data('before')
+        print("✅ K线数据爬取完成！")
+    elif choice == '3':
+        print("\n📊 开始爬取所有股票K线数据（不复权）...")
+        crawler = KlineCrawler(DataRepository())
+        crawler.crawl_kline_data('none')
+        print("✅ K线数据爬取完成！")
+    elif choice == '4':
+        try:
+            max_stocks = int(input("请输入要爬取的股票数量: ").strip())
+            if max_stocks > 0:
+                print(f"\n📊 开始爬取 {max_stocks} 只股票K线数据（后复权）...")
+                crawler = KlineCrawler(DataRepository())
+                crawler.crawl_kline_data('after', max_stocks)
+                print("✅ K线数据爬取完成！")
+            else:
+                print("❌ 股票数量必须大于0")
+        except ValueError:
+            print("❌ 请输入有效的数字")
+    elif choice == '5':
+        symbol = input("请输入股票代码 (如 SZ000001): ").strip()
+        if symbol:
+            print(f"\n📊 开始爬取 {symbol} K线数据（后复权）...")
+            crawler = KlineCrawler(DataRepository())
+            kline_data = crawler.crawl_single_stock_kline(symbol, 'after')
+            if kline_data:
+                print(f"✅ 成功获取 {len(kline_data)} 条K线数据")
+                print("最新5条数据:")
+                for data in kline_data[-5:]:
+                    date = data.get('crawl_date', '')
+                    close = data.get('close', 0)
+                    percent = data.get('percent', 0)
+                    print(f"  {date}: 收盘价 {close}, 涨跌幅 {percent}%")
+            else:
+                print(f"❌ 未获取到 {symbol} 的K线数据")
+        else:
+            print("❌ 股票代码不能为空")
+    elif choice == '6':
+        print("\n📊 恢复K线数据爬取...")
+        crawler = KlineCrawler(DataRepository())
+        crawler.resume_crawl('after')
+        print("✅ 恢复爬取完成！")
+    elif choice == '7':
+        # 🆕 爬取全市场股票某日数据
+        date_str = input("请输入目标日期 (YYYY-MM-DD，留空为今天): ").strip()
+        if not date_str:
+            from datetime import datetime
+            date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        adjust_choice = input("请选择复权类型 (1-前复权, 2-后复权, 3-不复权，默认后复权): ").strip()
+        adjust_type = 'after'  # 默认后复权
+        if adjust_choice == '1':
+            adjust_type = 'before'
+        elif adjust_choice == '3':
+            adjust_type = 'none'
+        
+        max_stocks_input = input("限制股票数量 (留空处理全部): ").strip()
+        max_stocks = None
+        if max_stocks_input and max_stocks_input.isdigit():
+            max_stocks = int(max_stocks_input)
+        
+        print(f"\n📊 开始爬取全市场股票 {date_str} 日频数据（{adjust_type}复权）...")
+        crawler = KlineCrawler(DataRepository())
+        crawler.crawl_market_daily_data(date_str, adjust_type, max_stocks)
+        print("✅ 全市场日频数据爬取完成！")
+    elif choice == '8':
+        date_str = input("请输入日期 (YYYY-MM-DD，留空为今天): ").strip()
+        if not date_str:
+            from datetime import datetime
+            date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        print(f"\n🔍 查看 {date_str} 的K线数据...")
+        if hasattr(DataRepository(), 'csv_storage'):
+            csv_storage = DataRepository().csv_storage
+            kline_data = csv_storage.get_kline_data_by_date(date_str)
+            if kline_data:
+                print(f"✅ 找到 {len(kline_data)} 条K线记录")
+                print("\n最新10条记录:")
+                print("-" * 80)
+                for i, data in enumerate(kline_data[-10:], 1):
+                    symbol = data.get('symbol', '')
+                    date = data.get('crawl_date', '')
+                    close = data.get('close', 0)
+                    volume = data.get('volume', 0)
+                    percent = data.get('percent', 0)
+                    print(f"{i:2d}. {symbol:<10} {date} 收盘:{float(close):>8.2f} "
+                          f"涨跌:{float(percent):>6.2f}% 成交量:{int(volume):>10,}")
+            else:
+                print(f"❌ 未找到 {date_str} 的K线数据")
+        else:
+            print("❌ 当前不支持数据库模式查看")
+    elif choice == '9':
+        print("\n📊 查看K线数据处理进度...")
+        crawler = KlineCrawler(DataRepository())
+        processed_symbols = crawler.get_processed_symbols()
+        all_symbols = crawler._get_unprocessed_stocks()
+        
+        if all_symbols:
+            processed_count = len(processed_symbols)
+            total_count = len(all_symbols)
+            progress = (processed_count / total_count * 100) if total_count > 0 else 0
+            
+            print(f"✅ 处理进度: {processed_count}/{total_count} ({progress:.1f}%)")
+            print(f"📊 已处理股票: {len(processed_symbols)} 只")
+            print(f"⏳ 待处理股票: {len(all_symbols) - len(processed_symbols)} 只")
+            
+            if processed_symbols:
+                print(f"\n已处理的股票代码（前10只）:")
+                for symbol in processed_symbols[:10]:
+                    print(f"  ✅ {symbol}")
+                if len(processed_symbols) > 10:
+                    print(f"  ... 还有 {len(processed_symbols) - 10} 只")
+        else:
+            print("❌ 无法获取股票列表，请先获取股票信息")
+    else:
+        print("❌ 无效选择")
 
 def crawl_financial_data():
     """爬取财务数据（按证券代码存储）"""
@@ -314,6 +453,60 @@ def crawl_financial_data():
     crawler.crawl_financial_data()
     print("✅ 财务数据爬取完成！")
 
+def crawl_financial_statements():
+    """爬取财务报表（三表完整数据）"""
+    print("\n📊 财务报表爬取选项")
+    print("=" * 40)
+    print("1. 爬取所有股票财务报表")
+    print("2. 按证券代码爬取单个股票财务报表")
+    print("3. 批量爬取指定股票财务报表")
+    print("0. 返回主菜单")
+    
+    choice = input("\n请选择 (0-3): ").strip()
+    
+    if choice == '0':
+        return
+    elif choice == '1':
+        print("\n📊 开始爬取所有股票财务报表...")
+        crawler = FinancialStatementsCrawler(DataRepository())
+        crawler.crawl_financial_statements()
+        print("✅ 财务报表爬取完成！")
+    elif choice == '2':
+        symbol = input("请输入证券代码（如 SH600519）: ").strip().upper()
+        if symbol:
+            print(f"\n📊 开始爬取 {symbol} 的财务报表...")
+            crawler = FinancialStatementsCrawler(DataRepository())
+            success = crawler.crawl_single_stock_statements(symbol)
+            if success:
+                print(f"✅ {symbol} 财务报表爬取完成！")
+            else:
+                print(f"❌ {symbol} 财务报表爬取失败！")
+        else:
+            print("❌ 证券代码不能为空")
+    elif choice == '3':
+        symbols_input = input("请输入证券代码列表，用逗号分隔（如 SH600519,SZ000001）: ").strip().upper()
+        if symbols_input:
+            symbols = [s.strip() for s in symbols_input.split(',') if s.strip()]
+            print(f"\n📊 开始批量爬取财务报表，共 {len(symbols)} 只股票...")
+            crawler = FinancialStatementsCrawler(DataRepository())
+            success_count = 0
+            for i, symbol in enumerate(symbols, 1):
+                print(f"\n[{i}/{len(symbols)}] 爬取 {symbol}...")
+                try:
+                    success = crawler.crawl_single_stock_statements(symbol)
+                    if success:
+                        success_count += 1
+                        print(f"✅ {symbol} 完成")
+                    else:
+                        print(f"❌ {symbol} 失败")
+                except Exception as e:
+                    print(f"❌ {symbol} 异常: {e}")
+            print(f"\n📊 批量爬取完成，成功: {success_count}/{len(symbols)}")
+        else:
+            print("❌ 证券代码列表不能为空")
+    else:
+        print("❌ 无效选择")
+
 
 
 def crawl_all_data():
@@ -321,28 +514,33 @@ def crawl_all_data():
     print("\n🔄 开始爬取所有数据...")
     
     # 1. 公司信息
-    print("1/5 爬取公司信息...")
+    print("1/6 爬取公司信息...")
     company_crawler = CompanyInfoCrawler(DataRepository())
     company_crawler.crawl_company_info()
     
     # 2. 获取股票信息（完整字段）
-    print("2/5 获取股票信息（完整字段）...")
+    print("2/6 获取股票信息（完整字段）...")
     stock_crawler = StockInfoCrawler(DataRepository())
     stock_crawler.crawl_stock_list()
     
     # 3. 创建股票列表（简化字段）
-    print("3/5 创建股票列表（简化字段）...")
+    print("3/6 创建股票列表（简化字段）...")
     stock_crawler.create_simplified_stock_list()
     
     # 4. K线数据
-    print("4/5 爬取K线数据...")
+    print("4/6 爬取K线数据...")
     kline_crawler = KlineCrawler(DataRepository())
     kline_crawler.crawl_kline_data('after')
     
     # 5. 财务数据
-    print("5/5 爬取财务数据...")
+    print("5/6 爬取财务数据...")
     financial_crawler = FinancialCrawler(DataRepository())
     financial_crawler.crawl_financial_data()
+    
+    # 6. 财务报表
+    print("6/6 爬取财务报表...")
+    statements_crawler = FinancialStatementsCrawler(DataRepository())
+    statements_crawler.crawl_financial_statements()
     
     print("✅ 所有数据爬取完成！")
 
@@ -359,7 +557,7 @@ def main():
     
     while True:
         show_menu()
-        choice = input("请选择功能 (0-5): ").strip()
+        choice = input("请选择功能 (0-7): ").strip()
         
         if choice == '0':
             print("👋 再见！")
@@ -375,6 +573,8 @@ def main():
         elif choice == '5':
             crawl_financial_data()
         elif choice == '6':
+            crawl_financial_statements()
+        elif choice == '7':
             crawl_all_data()
         else:
             print("❌ 无效选择，请重新输入！")

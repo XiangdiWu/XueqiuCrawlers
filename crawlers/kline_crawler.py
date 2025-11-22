@@ -23,8 +23,82 @@ class KlineCrawler(BaseCrawler):
         self.processed_count = 0
         self.failed_symbols = []
         
+        # 如果传入的是CSVStorage对象，确保正确访问
+        if data_repository and hasattr(data_repository, 'csv_path'):
+            # 这是一个CSVStorage对象，直接使用
+            self.csv_storage = data_repository
+        elif hasattr(data_repository, 'csv_storage') and data_repository.csv_storage:
+            # 这是一个DataRepository对象，使用其csv_storage属性
+            self.csv_storage = data_repository.csv_storage
+        else:
+            self.csv_storage = None
+        
         logger.info("K线爬虫初始化完成")
     
+    def crawl_market_daily_data(self, target_date: str = None, adjust_type: str = 'after', max_stocks: Optional[int] = None):
+        """
+        爬取全市场股票在某一个交易日的数据
+        
+        Args:
+            target_date: 目标日期，格式 'YYYY-MM-DD'，None表示最新交易日
+            adjust_type: 复权类型 ('before'前复权, 'after'后复权, 'none'不复权)
+            max_stocks: 最大处理股票数量，None表示处理所有
+        """
+        if target_date is None:
+            target_date = datetime.now().strftime('%Y-%m-%d')
+        
+        logger.info(f"开始爬取全市场股票 {target_date} 的日频数据，复权类型: {adjust_type}...")
+        
+        # 获取所有股票列表
+        stock_symbols = self._get_unprocessed_stocks()
+        
+        if max_stocks:
+            stock_symbols = stock_symbols[:max_stocks]
+            logger.info(f"限制处理数量: {max_stocks}")
+        
+        total = len(stock_symbols)
+        self.processed_count = 0
+        self.failed_symbols = []
+        
+        if total == 0:
+            logger.info("没有找到股票列表")
+            return
+        
+        # 将目标日期转换为时间戳
+        target_timestamp = self._date_to_timestamp(target_date)
+        next_day_timestamp = target_timestamp + 24 * 60 * 60 * 1000  # 第二天
+        
+        for i, symbol in enumerate(stock_symbols, 1):
+            logger.info(f'第{i}/{total}支，{symbol}-获取{target_date}日频数据中...')
+            
+            try:
+                # 获取指定日期的K线数据
+                kline_data_list = self._fetch_single_day_kline_data(symbol, target_timestamp, next_day_timestamp, adjust_type)
+                
+                if kline_data_list:
+                    # 保存单日数据
+                    success = self._save_single_day_data(kline_data_list, target_date)
+                    if success:
+                        self.processed_count += 1
+                        logger.info(f"保存成功: {symbol} {target_date} 数据")
+                    else:
+                        self.failed_symbols.append(symbol)
+                        logger.error(f"保存失败: {symbol}")
+                else:
+                    self.failed_symbols.append(symbol)
+                    logger.warning(f"没有获取到数据: {symbol} {target_date}")
+                
+            except Exception as e:
+                self.failed_symbols.append(symbol)
+                logger.error(f"获取数据异常 {symbol}: {e}")
+            
+            # 降低请求频率
+            time.sleep(0.3)
+        
+        # 输出统计信息
+        self._log_statistics()
+        logger.info(f"全市场股票 {target_date} 日频数据爬取完成")
+
     def crawl_kline_data(self, adjust_type='after', max_stocks: Optional[int] = None):
         """
         爬取K线数据 - 借鉴重试机制和批量处理
@@ -116,8 +190,8 @@ class KlineCrawler(BaseCrawler):
     
     def get_kline_log_filepath(self) -> str:
         """获取K线处理日志文件路径"""
-        if hasattr(self.data_repo, 'csv_storage') and self.data_repo.csv_storage:
-            return os.path.join(self.data_repo.csv_storage.csv_path, 'kline', 'kline_log.csv')
+        if self.csv_storage:
+            return self.csv_storage.get_kline_log_filepath()
         return 'kline_log.csv'
     
     def get_processed_symbols(self) -> List[str]:
@@ -298,6 +372,141 @@ class KlineCrawler(BaseCrawler):
         
         return []
     
+    def _fetch_single_day_kline_data(self, symbol: str, begin_timestamp: int, end_timestamp: int, adjust_type: str = 'after') -> List[Dict[str, Any]]:
+        """
+        获取指定日期的K线数据
+        
+        Args:
+            symbol: 股票代码
+            begin_timestamp: 开始时间戳（毫秒）
+            end_timestamp: 结束时间戳（毫秒）
+            adjust_type: 复权类型
+            
+        Returns:
+            List[Dict]: K线数据列表
+        """
+        for attempt in range(self.max_retries):
+            try:
+                url = (
+                    f"{self.stock_base_url}/v5/stock/chart/kline.json"
+                    f"?symbol={symbol}&begin={begin_timestamp}&end={end_timestamp}"
+                    f"&period=day&type={adjust_type}&indicator=kline"
+                )
+                
+                # 为stock.xueqiu.com使用专门的headers
+                headers = {
+                    'Accept': 'application/json, text/javascript, */*; q=0.01',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                    'cache-control': 'no-cache',
+                    'Connection': 'keep-alive',
+                    'Host': 'stock.xueqiu.com',
+                    'Referer': 'https://xueqiu.com/S',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+                
+                response = self.session.get(url, headers=headers, timeout=self.crawler_config['timeout'])
+                
+                if response.status_code != 200:
+                    raise Exception(f"HTTP错误: {response.status_code}")
+                
+                data = response.json()
+                
+                error_code = data.get('error_code')
+                error_description = data.get('error_description', '')
+                
+                if error_code != 0:
+                    raise Exception(f"API错误: {error_description} (错误码: {error_code})")
+                
+                kline_data = data.get('data', {})
+                items = kline_data.get('item', [])
+                
+                if not items:
+                    logger.debug(f"股票 {symbol} 在指定日期没有数据")
+                    return []
+                
+                # 转换数据格式
+                kline_list = []
+                for item in items:
+                    kline_data_item = {
+                        'symbol': symbol,
+                        'timestamp': item[0] / 1000,
+                        'volume': item[1],
+                        'open': round(item[2], 2),
+                        'high': round(item[3], 2),
+                        'low': round(item[4], 2),
+                        'close': round(item[5], 2),
+                        'chg': round(item[6], 2),
+                        'percent': round(item[7], 2),
+                        'turnoverrate': round(item[8], 2) if len(item) > 8 else 0.0,
+                        'period': 'day',
+                        'type': adjust_type,
+                        'crawl_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'crawl_date': datetime.now().strftime('%Y-%m-%d')
+                    }
+                    kline_list.append(kline_data_item)
+                
+                logger.debug(f"成功获取 {symbol} 指定日期的K线数据，共 {len(kline_list)} 条记录")
+                return kline_list
+                
+            except Exception as e:
+                if attempt < self.max_retries - 1:
+                    logger.warning(f"第{attempt + 1}次尝试失败 {symbol}: {e}，等待重试...")
+                    time.sleep(1)
+                else:
+                    logger.error(f"重试{self.max_retries}次后仍然失败 {symbol}: {e}")
+                    raise
+        
+        return []
+    
+    def _date_to_timestamp(self, date_str: str) -> int:
+        """
+        将日期字符串转换为时间戳（毫秒）
+        
+        Args:
+            date_str: 日期字符串，格式 'YYYY-MM-DD'
+            
+        Returns:
+            int: 时间戳（毫秒）
+        """
+        try:
+            dt = datetime.strptime(date_str, '%Y-%m-%d')
+            return int(dt.timestamp() * 1000)
+        except Exception as e:
+            logger.error(f"日期转换失败 {date_str}: {e}")
+            return int(time.time() * 1000)
+    
+    def _save_single_day_data(self, kline_data_list: List[Dict[str, Any]], target_date: str) -> bool:
+        """
+        保存单日数据到指定日期的文件
+        
+        Args:
+            kline_data_list: K线数据列表
+            target_date: 目标日期
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            if not kline_data_list:
+                return False
+            
+            # CSV存储模式
+            if self.csv_storage:
+                return self.csv_storage.save_kline_data_by_date(kline_data_list, target_date)
+            
+            # 数据库存储模式
+            elif hasattr(self.data_repo, 'save_kline_data_batch'):
+                return self.data_repo.save_kline_data_batch(kline_data_list)
+            
+            logger.warning("未找到合适的保存方法")
+            return False
+            
+        except Exception as e:
+            logger.error(f"保存单日数据失败: {e}")
+            return False
+    
     def _get_unprocessed_stocks(self) -> List[str]:
         """
         获取待处理的股票列表 - 从stock_info或stock_list中获取
@@ -306,17 +515,17 @@ class KlineCrawler(BaseCrawler):
             List[str]: 股票代码列表
         """
         try:
-            # 优先从CSV存储获取
-            if hasattr(self.data_repo, 'csv_storage') and self.data_repo.csv_storage:
+            # 使用CSV存储获取
+            if self.csv_storage:
                 # 获取最新的股票信息
-                stock_info_data = self.data_repo.csv_storage.get_latest_stock_info()
+                stock_info_data = self.csv_storage.get_latest_stock_info()
                 if stock_info_data:
                     symbols = [stock['symbol'] for stock in stock_info_data if stock.get('symbol')]
                     logger.info(f"从最新stock_info获取到 {len(symbols)} 只股票")
                     return symbols
                 
                 # 如果没有stock_info，尝试获取stock_list
-                stock_list_data = self.data_repo.csv_storage.get_latest_stock_list()
+                stock_list_data = self.csv_storage.get_latest_stock_list()
                 if stock_list_data:
                     symbols = [stock['symbol'] for stock in stock_list_data if stock.get('symbol')]
                     logger.info(f"从最新stock_list获取到 {len(symbols)} 只股票")
@@ -348,7 +557,7 @@ class KlineCrawler(BaseCrawler):
                 return False
             
             # CSV存储模式
-            if hasattr(self.data_repo, 'csv_storage') and self.data_repo.csv_storage:
+            if self.csv_storage:
                 # 按日期分组保存
                 date_groups = {}
                 for kline_data in kline_data_list:
@@ -360,7 +569,7 @@ class KlineCrawler(BaseCrawler):
                 # 按日期保存
                 success = True
                 for date_str, data_list in date_groups.items():
-                    if not self.data_repo.csv_storage.save_kline_data_by_date(data_list, date_str):
+                    if not self.csv_storage.save_kline_data_by_date(data_list, date_str):
                         success = False
                         break
                 
@@ -392,20 +601,9 @@ class KlineCrawler(BaseCrawler):
             }
             
             # CSV存储模式
-            if hasattr(self.data_repo, 'csv_storage') and self.data_repo.csv_storage:
-                # 创建K线处理日志文件
-                log_filepath = os.path.join(self.data_repo.csv_storage.csv_path, 'kline', 'kline_log.csv')
-                os.makedirs(os.path.dirname(log_filepath), exist_ok=True)
-                
-                file_exists = os.path.exists(log_filepath)
-                with open(log_filepath, 'a', newline='', encoding='utf-8-sig') as csvfile:
-                    fieldnames = ['symbol', 'timestamp', 'crawl_date']
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                    
-                    if not file_exists:
-                        writer.writeheader()
-                    
-                    writer.writerow(log_data)
+            if self.csv_storage:
+                # 使用CSV存储的日志方法
+                self.csv_storage.save_kline_log(log_data)
             
             # 数据库存储模式
             elif hasattr(self.data_repo, 'log_kline_processing'):

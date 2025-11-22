@@ -86,6 +86,124 @@ class DatabaseManager:
         except:
             return False
     
+    def save_financial_statement_data(self, symbol: str, statement_type: str, data: Dict[str, Any]) -> bool:
+        """
+        保存财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型 ('income', 'balance', 'cash')
+            data: 财务报表数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建字段名和值
+                fields = []
+                values = []
+                placeholders = []
+                
+                for key, value in data.items():
+                    if key not in ['statement_type']:  # 排除statement_type，它作为表名的一部分
+                        fields.append(key)
+                        values.append(value)
+                        placeholders.append('%s')
+                
+                # 构建SQL
+                field_str = ', '.join(fields)
+                placeholder_str = ', '.join(placeholders)
+                
+                # 使用INSERT IGNORE避免重复数据
+                sql = f"""
+                INSERT IGNORE INTO {table_name} ({field_str}) 
+                VALUES ({placeholder_str})
+                """
+                
+                cursor.execute(sql, values)
+                
+                # 记录处理日志
+                report_date = data.get('reportdate', data.get('report_date', ''))
+                log_sql = """
+                INSERT IGNORE INTO financial_statements_log (symbol, statement_type, report_date, timestamp) 
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                """
+                cursor.execute(log_sql, (symbol, statement_type, report_date))
+                
+                conn.commit()
+                logger.debug(f"保存{symbol}的{statement_type}报表数据成功")
+                return True
+                
+        except Exception as e:
+            logger.error(f"保存财务报表数据失败: {e}")
+            return False
+    
+    def get_financial_statement_data(self, symbol: str, statement_type: str, limit: int = None) -> List[Dict[str, Any]]:
+        """
+        获取财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型
+            limit: 限制返回条数
+            
+        Returns:
+            List[Dict]: 财务报表数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建SQL
+                sql = f"SELECT * FROM {table_name} WHERE symbol = %s ORDER BY reportdate DESC"
+                
+                if limit:
+                    sql += f" LIMIT {limit}"
+                
+                cursor.execute(sql, (symbol,))
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表数据失败: {e}")
+            return []
+    
+    def get_financial_statement_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取财务报表处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                sql = """
+                SELECT * FROM financial_statements_log 
+                ORDER BY timestamp DESC 
+                LIMIT 1000
+                """
+                
+                cursor.execute(sql)
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表日志失败: {e}")
+            return []
+    
     def close_all_connections(self):
         """关闭所有连接"""
         with self._lock:
@@ -340,6 +458,124 @@ class DataRepository:
             logger.error(f"保存股票基本信息失败: {e}")
             return False
     
+    def save_financial_statement_data(self, symbol: str, statement_type: str, data: Dict[str, Any]) -> bool:
+        """
+        保存财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型 ('income', 'balance', 'cash')
+            data: 财务报表数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建字段名和值
+                fields = []
+                values = []
+                placeholders = []
+                
+                for key, value in data.items():
+                    if key not in ['statement_type']:  # 排除statement_type，它作为表名的一部分
+                        fields.append(key)
+                        values.append(value)
+                        placeholders.append('%s')
+                
+                # 构建SQL
+                field_str = ', '.join(fields)
+                placeholder_str = ', '.join(placeholders)
+                
+                # 使用INSERT IGNORE避免重复数据
+                sql = f"""
+                INSERT IGNORE INTO {table_name} ({field_str}) 
+                VALUES ({placeholder_str})
+                """
+                
+                cursor.execute(sql, values)
+                
+                # 记录处理日志
+                report_date = data.get('reportdate', data.get('report_date', ''))
+                log_sql = """
+                INSERT IGNORE INTO financial_statements_log (symbol, statement_type, report_date, timestamp) 
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                """
+                cursor.execute(log_sql, (symbol, statement_type, report_date))
+                
+                conn.commit()
+                logger.debug(f"保存{symbol}的{statement_type}报表数据成功")
+                return True
+                
+        except Exception as e:
+            logger.error(f"保存财务报表数据失败: {e}")
+            return False
+    
+    def get_financial_statement_data(self, symbol: str, statement_type: str, limit: int = None) -> List[Dict[str, Any]]:
+        """
+        获取财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型
+            limit: 限制返回条数
+            
+        Returns:
+            List[Dict]: 财务报表数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建SQL
+                sql = f"SELECT * FROM {table_name} WHERE symbol = %s ORDER BY reportdate DESC"
+                
+                if limit:
+                    sql += f" LIMIT {limit}"
+                
+                cursor.execute(sql, (symbol,))
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表数据失败: {e}")
+            return []
+    
+    def get_financial_statement_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取财务报表处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                sql = """
+                SELECT * FROM financial_statements_log 
+                ORDER BY timestamp DESC 
+                LIMIT 1000
+                """
+                
+                cursor.execute(sql)
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表日志失败: {e}")
+            return []
+    
     def save_company_info(self, company_data: Dict[str, Any]) -> bool:
         """保存公司信息"""
         try:
@@ -357,6 +593,124 @@ class DataRepository:
         except Exception as e:
             logger.error(f"保存公司信息失败: {e}")
             return False
+    
+    def save_financial_statement_data(self, symbol: str, statement_type: str, data: Dict[str, Any]) -> bool:
+        """
+        保存财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型 ('income', 'balance', 'cash')
+            data: 财务报表数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建字段名和值
+                fields = []
+                values = []
+                placeholders = []
+                
+                for key, value in data.items():
+                    if key not in ['statement_type']:  # 排除statement_type，它作为表名的一部分
+                        fields.append(key)
+                        values.append(value)
+                        placeholders.append('%s')
+                
+                # 构建SQL
+                field_str = ', '.join(fields)
+                placeholder_str = ', '.join(placeholders)
+                
+                # 使用INSERT IGNORE避免重复数据
+                sql = f"""
+                INSERT IGNORE INTO {table_name} ({field_str}) 
+                VALUES ({placeholder_str})
+                """
+                
+                cursor.execute(sql, values)
+                
+                # 记录处理日志
+                report_date = data.get('reportdate', data.get('report_date', ''))
+                log_sql = """
+                INSERT IGNORE INTO financial_statements_log (symbol, statement_type, report_date, timestamp) 
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                """
+                cursor.execute(log_sql, (symbol, statement_type, report_date))
+                
+                conn.commit()
+                logger.debug(f"保存{symbol}的{statement_type}报表数据成功")
+                return True
+                
+        except Exception as e:
+            logger.error(f"保存财务报表数据失败: {e}")
+            return False
+    
+    def get_financial_statement_data(self, symbol: str, statement_type: str, limit: int = None) -> List[Dict[str, Any]]:
+        """
+        获取财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型
+            limit: 限制返回条数
+            
+        Returns:
+            List[Dict]: 财务报表数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建SQL
+                sql = f"SELECT * FROM {table_name} WHERE symbol = %s ORDER BY reportdate DESC"
+                
+                if limit:
+                    sql += f" LIMIT {limit}"
+                
+                cursor.execute(sql, (symbol,))
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表数据失败: {e}")
+            return []
+    
+    def get_financial_statement_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取财务报表处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                sql = """
+                SELECT * FROM financial_statements_log 
+                ORDER BY timestamp DESC 
+                LIMIT 1000
+                """
+                
+                cursor.execute(sql)
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表日志失败: {e}")
+            return []
     
     def get_company_info_by_symbol(self, symbol: str) -> Dict[str, Any]:
         """
@@ -405,6 +759,124 @@ class DataRepository:
             logger.error(f"保存财务数据失败: {e}")
             return False
     
+    def save_financial_statement_data(self, symbol: str, statement_type: str, data: Dict[str, Any]) -> bool:
+        """
+        保存财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型 ('income', 'balance', 'cash')
+            data: 财务报表数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建字段名和值
+                fields = []
+                values = []
+                placeholders = []
+                
+                for key, value in data.items():
+                    if key not in ['statement_type']:  # 排除statement_type，它作为表名的一部分
+                        fields.append(key)
+                        values.append(value)
+                        placeholders.append('%s')
+                
+                # 构建SQL
+                field_str = ', '.join(fields)
+                placeholder_str = ', '.join(placeholders)
+                
+                # 使用INSERT IGNORE避免重复数据
+                sql = f"""
+                INSERT IGNORE INTO {table_name} ({field_str}) 
+                VALUES ({placeholder_str})
+                """
+                
+                cursor.execute(sql, values)
+                
+                # 记录处理日志
+                report_date = data.get('reportdate', data.get('report_date', ''))
+                log_sql = """
+                INSERT IGNORE INTO financial_statements_log (symbol, statement_type, report_date, timestamp) 
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                """
+                cursor.execute(log_sql, (symbol, statement_type, report_date))
+                
+                conn.commit()
+                logger.debug(f"保存{symbol}的{statement_type}报表数据成功")
+                return True
+                
+        except Exception as e:
+            logger.error(f"保存财务报表数据失败: {e}")
+            return False
+    
+    def get_financial_statement_data(self, symbol: str, statement_type: str, limit: int = None) -> List[Dict[str, Any]]:
+        """
+        获取财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型
+            limit: 限制返回条数
+            
+        Returns:
+            List[Dict]: 财务报表数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建SQL
+                sql = f"SELECT * FROM {table_name} WHERE symbol = %s ORDER BY reportdate DESC"
+                
+                if limit:
+                    sql += f" LIMIT {limit}"
+                
+                cursor.execute(sql, (symbol,))
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表数据失败: {e}")
+            return []
+    
+    def get_financial_statement_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取财务报表处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                sql = """
+                SELECT * FROM financial_statements_log 
+                ORDER BY timestamp DESC 
+                LIMIT 1000
+                """
+                
+                cursor.execute(sql)
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表日志失败: {e}")
+            return []
+    
     def save_kline_data(self, kline_data: Dict[str, Any]) -> bool:
         """保存K线数据"""
         try:
@@ -417,6 +889,124 @@ class DataRepository:
         except Exception as e:
             logger.error(f"保存K线数据失败: {e}")
             return False
+    
+    def save_financial_statement_data(self, symbol: str, statement_type: str, data: Dict[str, Any]) -> bool:
+        """
+        保存财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型 ('income', 'balance', 'cash')
+            data: 财务报表数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建字段名和值
+                fields = []
+                values = []
+                placeholders = []
+                
+                for key, value in data.items():
+                    if key not in ['statement_type']:  # 排除statement_type，它作为表名的一部分
+                        fields.append(key)
+                        values.append(value)
+                        placeholders.append('%s')
+                
+                # 构建SQL
+                field_str = ', '.join(fields)
+                placeholder_str = ', '.join(placeholders)
+                
+                # 使用INSERT IGNORE避免重复数据
+                sql = f"""
+                INSERT IGNORE INTO {table_name} ({field_str}) 
+                VALUES ({placeholder_str})
+                """
+                
+                cursor.execute(sql, values)
+                
+                # 记录处理日志
+                report_date = data.get('reportdate', data.get('report_date', ''))
+                log_sql = """
+                INSERT IGNORE INTO financial_statements_log (symbol, statement_type, report_date, timestamp) 
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                """
+                cursor.execute(log_sql, (symbol, statement_type, report_date))
+                
+                conn.commit()
+                logger.debug(f"保存{symbol}的{statement_type}报表数据成功")
+                return True
+                
+        except Exception as e:
+            logger.error(f"保存财务报表数据失败: {e}")
+            return False
+    
+    def get_financial_statement_data(self, symbol: str, statement_type: str, limit: int = None) -> List[Dict[str, Any]]:
+        """
+        获取财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型
+            limit: 限制返回条数
+            
+        Returns:
+            List[Dict]: 财务报表数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建SQL
+                sql = f"SELECT * FROM {table_name} WHERE symbol = %s ORDER BY reportdate DESC"
+                
+                if limit:
+                    sql += f" LIMIT {limit}"
+                
+                cursor.execute(sql, (symbol,))
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表数据失败: {e}")
+            return []
+    
+    def get_financial_statement_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取财务报表处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                sql = """
+                SELECT * FROM financial_statements_log 
+                ORDER BY timestamp DESC 
+                LIMIT 1000
+                """
+                
+                cursor.execute(sql)
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表日志失败: {e}")
+            return []
     
     def save_kline_data_batch(self, kline_data_list: List[Dict[str, Any]], date_str: str = None) -> bool:
         """
@@ -442,6 +1032,124 @@ class DataRepository:
             logger.error(f"批量保存K线数据失败: {e}")
             return False
     
+    def save_financial_statement_data(self, symbol: str, statement_type: str, data: Dict[str, Any]) -> bool:
+        """
+        保存财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型 ('income', 'balance', 'cash')
+            data: 财务报表数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建字段名和值
+                fields = []
+                values = []
+                placeholders = []
+                
+                for key, value in data.items():
+                    if key not in ['statement_type']:  # 排除statement_type，它作为表名的一部分
+                        fields.append(key)
+                        values.append(value)
+                        placeholders.append('%s')
+                
+                # 构建SQL
+                field_str = ', '.join(fields)
+                placeholder_str = ', '.join(placeholders)
+                
+                # 使用INSERT IGNORE避免重复数据
+                sql = f"""
+                INSERT IGNORE INTO {table_name} ({field_str}) 
+                VALUES ({placeholder_str})
+                """
+                
+                cursor.execute(sql, values)
+                
+                # 记录处理日志
+                report_date = data.get('reportdate', data.get('report_date', ''))
+                log_sql = """
+                INSERT IGNORE INTO financial_statements_log (symbol, statement_type, report_date, timestamp) 
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                """
+                cursor.execute(log_sql, (symbol, statement_type, report_date))
+                
+                conn.commit()
+                logger.debug(f"保存{symbol}的{statement_type}报表数据成功")
+                return True
+                
+        except Exception as e:
+            logger.error(f"保存财务报表数据失败: {e}")
+            return False
+    
+    def get_financial_statement_data(self, symbol: str, statement_type: str, limit: int = None) -> List[Dict[str, Any]]:
+        """
+        获取财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型
+            limit: 限制返回条数
+            
+        Returns:
+            List[Dict]: 财务报表数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建SQL
+                sql = f"SELECT * FROM {table_name} WHERE symbol = %s ORDER BY reportdate DESC"
+                
+                if limit:
+                    sql += f" LIMIT {limit}"
+                
+                cursor.execute(sql, (symbol,))
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表数据失败: {e}")
+            return []
+    
+    def get_financial_statement_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取财务报表处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                sql = """
+                SELECT * FROM financial_statements_log 
+                ORDER BY timestamp DESC 
+                LIMIT 1000
+                """
+                
+                cursor.execute(sql)
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表日志失败: {e}")
+            return []
+    
     def log_kline_processing(self, symbol: str) -> bool:
         """记录K线数据处理日志"""
         try:
@@ -458,6 +1166,124 @@ class DataRepository:
         except Exception as e:
             logger.error(f"记录K线处理日志失败: {e}")
             return False
+    
+    def save_financial_statement_data(self, symbol: str, statement_type: str, data: Dict[str, Any]) -> bool:
+        """
+        保存财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型 ('income', 'balance', 'cash')
+            data: 财务报表数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建字段名和值
+                fields = []
+                values = []
+                placeholders = []
+                
+                for key, value in data.items():
+                    if key not in ['statement_type']:  # 排除statement_type，它作为表名的一部分
+                        fields.append(key)
+                        values.append(value)
+                        placeholders.append('%s')
+                
+                # 构建SQL
+                field_str = ', '.join(fields)
+                placeholder_str = ', '.join(placeholders)
+                
+                # 使用INSERT IGNORE避免重复数据
+                sql = f"""
+                INSERT IGNORE INTO {table_name} ({field_str}) 
+                VALUES ({placeholder_str})
+                """
+                
+                cursor.execute(sql, values)
+                
+                # 记录处理日志
+                report_date = data.get('reportdate', data.get('report_date', ''))
+                log_sql = """
+                INSERT IGNORE INTO financial_statements_log (symbol, statement_type, report_date, timestamp) 
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                """
+                cursor.execute(log_sql, (symbol, statement_type, report_date))
+                
+                conn.commit()
+                logger.debug(f"保存{symbol}的{statement_type}报表数据成功")
+                return True
+                
+        except Exception as e:
+            logger.error(f"保存财务报表数据失败: {e}")
+            return False
+    
+    def get_financial_statement_data(self, symbol: str, statement_type: str, limit: int = None) -> List[Dict[str, Any]]:
+        """
+        获取财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型
+            limit: 限制返回条数
+            
+        Returns:
+            List[Dict]: 财务报表数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建SQL
+                sql = f"SELECT * FROM {table_name} WHERE symbol = %s ORDER BY reportdate DESC"
+                
+                if limit:
+                    sql += f" LIMIT {limit}"
+                
+                cursor.execute(sql, (symbol,))
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表数据失败: {e}")
+            return []
+    
+    def get_financial_statement_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取财务报表处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                sql = """
+                SELECT * FROM financial_statements_log 
+                ORDER BY timestamp DESC 
+                LIMIT 1000
+                """
+                
+                cursor.execute(sql)
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表日志失败: {e}")
+            return []
     
     def batch_save_stock_data(self, stock_data_list: List[Dict[str, Any]]) -> bool:
         """批量保存股票数据"""
@@ -489,6 +1315,124 @@ class DataRepository:
         except Exception as e:
             logger.error(f"批量保存股票数据失败: {e}")
             return False
+    
+    def save_financial_statement_data(self, symbol: str, statement_type: str, data: Dict[str, Any]) -> bool:
+        """
+        保存财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型 ('income', 'balance', 'cash')
+            data: 财务报表数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建字段名和值
+                fields = []
+                values = []
+                placeholders = []
+                
+                for key, value in data.items():
+                    if key not in ['statement_type']:  # 排除statement_type，它作为表名的一部分
+                        fields.append(key)
+                        values.append(value)
+                        placeholders.append('%s')
+                
+                # 构建SQL
+                field_str = ', '.join(fields)
+                placeholder_str = ', '.join(placeholders)
+                
+                # 使用INSERT IGNORE避免重复数据
+                sql = f"""
+                INSERT IGNORE INTO {table_name} ({field_str}) 
+                VALUES ({placeholder_str})
+                """
+                
+                cursor.execute(sql, values)
+                
+                # 记录处理日志
+                report_date = data.get('reportdate', data.get('report_date', ''))
+                log_sql = """
+                INSERT IGNORE INTO financial_statements_log (symbol, statement_type, report_date, timestamp) 
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                """
+                cursor.execute(log_sql, (symbol, statement_type, report_date))
+                
+                conn.commit()
+                logger.debug(f"保存{symbol}的{statement_type}报表数据成功")
+                return True
+                
+        except Exception as e:
+            logger.error(f"保存财务报表数据失败: {e}")
+            return False
+    
+    def get_financial_statement_data(self, symbol: str, statement_type: str, limit: int = None) -> List[Dict[str, Any]]:
+        """
+        获取财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型
+            limit: 限制返回条数
+            
+        Returns:
+            List[Dict]: 财务报表数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建SQL
+                sql = f"SELECT * FROM {table_name} WHERE symbol = %s ORDER BY reportdate DESC"
+                
+                if limit:
+                    sql += f" LIMIT {limit}"
+                
+                cursor.execute(sql, (symbol,))
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表数据失败: {e}")
+            return []
+    
+    def get_financial_statement_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取财务报表处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                sql = """
+                SELECT * FROM financial_statements_log 
+                ORDER BY timestamp DESC 
+                LIMIT 1000
+                """
+                
+                cursor.execute(sql)
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表日志失败: {e}")
+            return []
     
     def get_storage_info(self) -> Dict[str, Any]:
         """获取存储信息"""
@@ -543,3 +1487,121 @@ class DataRepository:
         except Exception as e:
             logger.error(f"创建备份失败: {e}")
             return False
+    
+    def save_financial_statement_data(self, symbol: str, statement_type: str, data: Dict[str, Any]) -> bool:
+        """
+        保存财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型 ('income', 'balance', 'cash')
+            data: 财务报表数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建字段名和值
+                fields = []
+                values = []
+                placeholders = []
+                
+                for key, value in data.items():
+                    if key not in ['statement_type']:  # 排除statement_type，它作为表名的一部分
+                        fields.append(key)
+                        values.append(value)
+                        placeholders.append('%s')
+                
+                # 构建SQL
+                field_str = ', '.join(fields)
+                placeholder_str = ', '.join(placeholders)
+                
+                # 使用INSERT IGNORE避免重复数据
+                sql = f"""
+                INSERT IGNORE INTO {table_name} ({field_str}) 
+                VALUES ({placeholder_str})
+                """
+                
+                cursor.execute(sql, values)
+                
+                # 记录处理日志
+                report_date = data.get('reportdate', data.get('report_date', ''))
+                log_sql = """
+                INSERT IGNORE INTO financial_statements_log (symbol, statement_type, report_date, timestamp) 
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                """
+                cursor.execute(log_sql, (symbol, statement_type, report_date))
+                
+                conn.commit()
+                logger.debug(f"保存{symbol}的{statement_type}报表数据成功")
+                return True
+                
+        except Exception as e:
+            logger.error(f"保存财务报表数据失败: {e}")
+            return False
+    
+    def get_financial_statement_data(self, symbol: str, statement_type: str, limit: int = None) -> List[Dict[str, Any]]:
+        """
+        获取财务报表数据
+        
+        Args:
+            symbol: 证券代码
+            statement_type: 报表类型
+            limit: 限制返回条数
+            
+        Returns:
+            List[Dict]: 财务报表数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                # 构建表名
+                table_name = f"financial_{statement_type}"
+                
+                # 构建SQL
+                sql = f"SELECT * FROM {table_name} WHERE symbol = %s ORDER BY reportdate DESC"
+                
+                if limit:
+                    sql += f" LIMIT {limit}"
+                
+                cursor.execute(sql, (symbol,))
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表数据失败: {e}")
+            return []
+    
+    def get_financial_statement_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取财务报表处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                
+                sql = """
+                SELECT * FROM financial_statements_log 
+                ORDER BY timestamp DESC 
+                LIMIT 1000
+                """
+                
+                cursor.execute(sql)
+                result = cursor.fetchall()
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"获取财务报表日志失败: {e}")
+            return []

@@ -69,34 +69,49 @@ class FinancialCrawler(BaseCrawler):
                         
                         # 确保所有字段都有值，空值设为0
                         financial_data = {
+                            # 基本信息
                             'compcode': symbol,
                             'reportdate': item.get('reportdate', ''),
-                            'basiceps': item.get('basiceps', 0),
-                            'epsdiluted': item.get('epsdiluted', 0),
-                            'epsweighted': item.get('epsweighted', 0),
-                            'naps': item.get('naps', 0),
-                            'opercashpershare': item.get('opercashpershare', 0),
-                            'peropecashpershare': item.get('peropecashpershare', 0),
-                            'netassgrowrate': item.get('netassgrowrate', 0),
-                            'dilutedroe': item.get('dilutedroe', 0),
-                            'weightedroe': item.get('weightedroe', 0),
-                            'mainbusincgrowrate': item.get('mainbusincgrowrate', 0),
-                            'netincgrowrate': item.get('netincgrowrate', 0),
-                            'totassgrowrate': item.get('totassgrowrate', 0),
-                            'salegrossprofitrto': item.get('salegrossprofitrto', 0),
-                            'mainbusiincome': item.get('mainbusiincome', 0),
-                            'mainbusiprofit': item.get('mainbusiprofit', 0),
-                            'totprofit': item.get('totprofit', 0),
-                            'netprofit': item.get('netprofit', 0),
-                            'totalassets': item.get('totalassets', 0),
-                            'totalliab': item.get('totalliab', 0),
-                            'totsharequi': item.get('totsharequi', 0),
-                            'operrevenue': item.get('operrevenue', 0),
-                            'invnetcashflow': item.get('invnetcashflow', 0),
-                            'finnetcflow': item.get('finnetcflow', 0),
-                            'chgexchgchgs': item.get('chgexchgchgs', 0),
-                            'cashnetr': item.get('cashnetr', 0),
-                            'cashequfinbal': item.get('cashequfinbal', 0),
+                            'name': item.get('name', ''),
+                            
+                            # 每股指标
+                            'basiceps': item.get('basiceps', 0),           # 基本每股收益
+                            'epsdiluted': item.get('epsdiluted', 0),       # 稀释每股收益
+                            'epsweighted': item.get('epsweighted', 0),     # 加权每股收益
+                            'naps': item.get('naps', 0),                   # 每股净资产
+                            'opercashpershare': item.get('opercashpershare', 0),  # 每股经营现金流
+                            'peropecashpershare': item.get('peropecashpershare', 0), # 每股净资产现金流
+                            'totalshare': item.get('totalshare', 0),       # 总股本
+                            
+                            # 盈利能力指标
+                            'salegrossprofitrto': item.get('salegrossprofitrto', 0),  # 销售毛利率
+                            'mainbusiincome': item.get('mainbusiincome', 0),         # 主营业务收入
+                            'mainbusiprofit': item.get('mainbusiprofit', 0),         # 主营业务利润
+                            'totprofit': item.get('totprofit', 0),                   # 利润总额
+                            'netprofit': item.get('netprofit', 0),                   # 净利润
+                            'dilutedroe': item.get('dilutedroe', 0),                 # 稀释ROE
+                            'weightedroe': item.get('weightedroe', 0),               # 加权ROE
+                            
+                            # 成长性指标
+                            'netassgrowrate': item.get('netassgrowrate', 0),         # 净资产增长率
+                            'mainbusincgrowrate': item.get('mainbusincgrowrate', 0), # 主营收入增长率
+                            'netincgrowrate': item.get('netincgrowrate', 0),         # 净利润增长率
+                            'totassgrowrate': item.get('totassgrowrate', 0),         # 总资产增长率
+                            
+                            # 资产负债指标
+                            'totalassets': item.get('totalassets', 0),               # 总资产
+                            'totalliab': item.get('totalliab', 0),                   # 总负债
+                            'totsharequi': item.get('totsharequi', 0),               # 股东权益
+                            
+                            # 现金流指标
+                            'operrevenue': item.get('operrevenue', 0),               # 营业收入
+                            'invnetcashflow': item.get('invnetcashflow', 0),         # 投资现金流
+                            'finnetcflow': item.get('finnetcflow', 0),               # 筹资现金流
+                            'chgexchgchgs': item.get('chgexchgchgs', 0),             # 汇率变动影响
+                            'cashnetr': item.get('cashnetr', 0),                     # 现金净增加额
+                            'cashequfinbal': item.get('cashequfinbal', 0),           # 现金及等价物余额
+                            
+                            # 元数据
                             'crawl_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                             'timestamp': int(time.time())
                         }
