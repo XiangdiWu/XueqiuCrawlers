@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-获取雪球Cookie
+手动获取雪球Cookie
 
 1、cookie_input.txt中手动配置Cookie字符串
 2、读取、处理并保存Cookie
@@ -20,6 +20,49 @@ from engine.logger import get_logger
 logger = get_logger(__name__)
 
 
+def show_cookie_guide():
+    """显示Cookie获取引导"""
+    print("\n" + "="*50)
+    print("🍪 雪球Cookie获取详细指南")
+    print("="*50)
+    print()
+    print("📋 方法一：通过开发者工具获取（推荐）")
+    print("-" * 40)
+    print("1. 在浏览器中打开雪球网站：https://xueqiu.com")
+    print("2. 登录您的雪球账号")
+    print("3. 按F12打开开发者工具")
+    print("4. 切换到 Network（网络）标签")
+    print("5. 刷新页面或点击任意链接")
+    print("6. 在请求列表中找到任意一个请求")
+    print("7. 点击该请求，在右侧找到 Request Headers")
+    print("8. 找到 Cookie 字段，复制完整的Cookie字符串")
+    print()
+    print("📋 方法二：通过Application标签获取")
+    print("-" * 40)
+    print("1. 在浏览器中打开雪球网站并登录")
+    print("2. 按F12打开开发者工具")
+    print("3. 切换到 Application（应用）标签")
+    print("4. 左侧选择 Storage > Cookies > https://xueqiu.com")
+    print("5. 手动复制所有Cookie的键值对，格式如：key1=value1; key2=value2")
+    print()
+    print("🔍 关键Cookie说明：")
+    print("-" * 40)
+    print("• u: 用户ID（非0表示已登录）")
+    print("• s: 会话ID")
+    print("• xq_a_token: 访问令牌")
+    print("• xq_id_token: 身份令牌")
+    print("• acw_sc__v2: 反爬虫参数（可选）")
+    print()
+    print("💡 提示：")
+    print("-" * 40)
+    print("• Cookie字符串通常很长，包含多个键值对")
+    print("• 格式示例：u=123456; s=abcdef; xq_a_token=xyz789;")
+    print("• 复制后直接粘贴到 cookie_input.txt 文件中")
+    print("• 保存文件后重新运行此脚本即可")
+    print("="*50)
+    print()
+
+
 def process_cookie_file():
     """处理Cookie文件"""
     print("🍪 处理Cookie文件")
@@ -32,8 +75,12 @@ def process_cookie_file():
         # 创建文件
         open(cookie_file, 'w', encoding='utf-8')
         print(f"📝 已创建文件: {cookie_file}")
-        print("请先编辑该文件，在文件内粘贴Cookie字符串")
-        # 询问是否需要手动获取Cookie的引导，并提供引导
+        
+        # 询问是否需要手动获取Cookie的引导
+        need_guide = input("是否需要Cookie获取引导？(y/N): ").strip().lower()
+        if need_guide == 'y':
+            show_cookie_guide()
+        
         return False
     
     # 读取文件内容
@@ -52,6 +99,12 @@ def process_cookie_file():
         if not cookie_string:
             print("❌ 未找到Cookie字符串")
             print(f"请编辑 {cookie_file} 文件，在非注释行添加Cookie字符串")
+            
+            # 询问是否需要Cookie获取引导
+            need_guide = input("是否需要Cookie获取引导？(y/N): ").strip().lower()
+            if need_guide == 'y':
+                show_cookie_guide()
+            
             return False
         
         print(f"📝 读取到Cookie字符串: {cookie_string[:50]}...")

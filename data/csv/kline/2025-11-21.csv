@@ -1,4 +1,0 @@
-﻿symbol,timestamp,volume,open,high,low,close,chg,percent,turnoverrate,period,type
-SH600000,1700000000,1000000,10.5,10.8,10.3,10.6,0.1,0.95,0.05,day,before
-SZ000001,1700000000,2000000,15.2,15.5,15.0,15.3,0.1,0.66,0.08,day,before
-SH600036,1700000100,1500000,25.8,26.2,25.5,26.0,0.2,0.78,0.06,day,before

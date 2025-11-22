@@ -1,7 +1,7 @@
 """
 爬虫服务层
 """
-from crawlers.stock_crawler import StockCrawler
+from crawlers.stock_info_crawler import StockCrawler
 from crawlers.financial_crawler import FinancialCrawler
 from crawlers.kline_crawler import KlineCrawler
 from engine.logger import logger
