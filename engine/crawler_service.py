@@ -4,9 +4,9 @@
 from crawlers.stock_crawler import StockCrawler
 from crawlers.financial_crawler import FinancialCrawler
 from crawlers.kline_crawler import KlineCrawler
-from utils.logger import logger
-from database.database import DataRepository
-from config.settings import Config
+from engine.logger import logger
+from engine.database import DataRepository
+from engine.settings import Config
 
 
 class CrawlerService:

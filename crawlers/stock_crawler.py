@@ -3,7 +3,7 @@
 """
 import json
 from crawlers.base_crawler import BaseCrawler
-from utils.logger import logger
+from engine.logger import logger
 
 
 class StockCrawler(BaseCrawler):
@@ -30,16 +30,24 @@ class StockCrawler(BaseCrawler):
         """按股票类型爬取数据"""
         url_template = (
             f"{self.base_url}/stock/quote_order.json"
-            "?page={{page}}&size={self.crawler_config['page_size']}"
+            "?page={page}&size={page_size}"
             "&order=asc&exchange=CN&stockType={stock_type}"
             "&column=symbol%2Cname%2Ccurrent%2Cchg%2Cpercent%2Clast_close"
             "%2Copen%2Chigh%2Clow%2Cvolume%2Camount%2Cmarket_capital"
-            "%2Cpe_ttm%2Chigh52w%2Clow52w%2Chasexist&orderBy=symbol&_={{timestamp}}"
+            "%2Cpe_ttm%2Chigh52w%2Clow52w%2Chasexist&orderBy=symbol&_={timestamp}"
         )
         
         # 获取第一页确定总页数
-        first_page_url = url_template.format(page=1, timestamp=self.get_timestamp())
+        first_page_url = url_template.format(
+            page=1, 
+            page_size=self.crawler_config['page_size'],
+            stock_type=stock_type,
+            timestamp=self.get_timestamp()
+        )
         response = self.make_request(first_page_url)
+        
+        # 处理响应，将null替换为0防止解析错误
+        response_text = response.text.replace('null', '0')
         data = response.json()
         
         total_count = int(data.get('count', 0))
@@ -50,13 +58,22 @@ class StockCrawler(BaseCrawler):
         # 爬取所有页面
         stock_count = 0
         for page in range(1, max_page + 1):
-            url = url_template.format(page=page, timestamp=self.get_timestamp())
+            url = url_template.format(
+                page=page, 
+                page_size=self.crawler_config['page_size'],
+                stock_type=stock_type,
+                timestamp=self.get_timestamp()
+            )
             response = self.make_request(url)
+            
+            # 处理响应，将null替换为0防止解析错误
+            response_text = response.text.replace('null', '0')
             data = response.json()
             
-            # 处理股票数据
-            for stock_item in data.get('data', []):
-                stock_data = self._parse_stock_data(stock_item, stock_type)
+            # 处理股票数据 - 使用原始数据结构（数组形式）
+            stock_list = data.get('data', [])
+            for stock_item in stock_list:
+                stock_data = self._parse_stock_data_legacy(stock_item, stock_type)
                 try:
                     self.data_repo.save_stock_basic_info(stock_data)
                     stock_count += 1
@@ -81,6 +98,22 @@ class StockCrawler(BaseCrawler):
             'amount': stock_item[10] or 0,
             'volume': stock_item[9] or 0,
             'pe_ttm': stock_item[12] or 0
+        }
+    
+    def _parse_stock_data_legacy(self, stock_item, stock_type):
+        """解析股票数据（recycling版本 - 数组形式）"""
+        return {
+            'symbol': stock_item[0],
+            'code': stock_item[0],
+            'name': stock_item[1],
+            'current': stock_item[2] if len(stock_item) > 2 else 0,
+            'percent': stock_item[4] if len(stock_item) > 4 else 0,
+            'high52w': stock_item[13] if len(stock_item) > 13 else 0,
+            'low52w': stock_item[14] if len(stock_item) > 14 else 0,
+            'marketcapital': stock_item[11] if len(stock_item) > 11 else 0,
+            'amount': stock_item[10] if len(stock_item) > 10 else 0,
+            'volume': stock_item[9] if len(stock_item) > 9 else 0,
+            'pe_ttm': stock_item[12] if len(stock_item) > 12 else 0
         }
     
     def crawl_company_info(self):

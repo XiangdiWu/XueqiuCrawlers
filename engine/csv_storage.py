@@ -6,7 +6,7 @@ import csv
 import pandas as pd
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from utils.logger import get_logger
+from engine.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -51,6 +51,62 @@ class CSVStorage:
         if subdir:
             return os.path.join(self.csv_path, subdir, filename)
         return os.path.join(self.csv_path, filename)
+    
+    def get_kline_filepath_by_date(self, date_str: str = None) -> str:
+        """
+        根据日期获取K线数据文件路径
+        
+        Args:
+            date_str: 日期字符串，格式为YYYY-MM-DD，默认为今天
+            
+        Returns:
+            str: K线数据文件路径
+        """
+        if date_str is None:
+            from datetime import datetime
+            date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        filename = f"{date_str}.csv"
+        return os.path.join(self.csv_path, 'kline', filename)
+    
+    def save_kline_data_by_date(self, data: List[Dict[str, Any]], date_str: str = None) -> bool:
+        """
+        按日期保存K线数据
+        
+        Args:
+            data: K线数据列表
+            date_str: 日期字符串，格式为YYYY-MM-DD，默认为今天
+            
+        Returns:
+            bool: 是否成功
+        """
+        if not data:
+            logger.warning("没有K线数据要保存")
+            return False
+        
+        try:
+            filepath = self.get_kline_filepath_by_date(date_str)
+            file_exists = os.path.exists(filepath)
+            
+            # 获取字段名
+            fieldnames = list(data[0].keys())
+            
+            with open(filepath, 'a', newline='', encoding=self.encoding) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                
+                # 如果文件不存在，写入表头
+                if not file_exists:
+                    writer.writeheader()
+                
+                # 写入数据
+                writer.writerows(data)
+            
+            logger.info(f"成功保存 {len(data)} 条K线数据到 {filepath}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存K线数据失败: {e}")
+            return False
     
     def save_to_csv(self, data: List[Dict[str, Any]], table_name: str, 
                     mode: str = 'a', suffix: str = '') -> bool:
@@ -179,7 +235,7 @@ class CSVStorage:
             bool: 是否成功
         """
         try:
-            from config.settings import Config
+            from engine.settings import Config
             backup_config = Config.STORAGE_CONFIG
             backup_path = backup_config.get('backup_path', 'data/backup')
             

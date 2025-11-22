@@ -3,7 +3,7 @@
 """
 import json
 from crawlers.base_crawler import BaseCrawler
-from utils.logger import logger
+from engine.logger import logger
 
 
 class FinancialCrawler(BaseCrawler):

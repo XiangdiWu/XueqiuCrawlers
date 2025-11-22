@@ -9,14 +9,12 @@ import os
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from services.crawler_service import CrawlerService
-from utils.logger import get_logger
+from engine.crawler_service import CrawlerService
+from engine.logger import get_logger
 
 logger = get_logger(__name__)
 
-
-def main():
-    """主函数"""
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='雪球股票数据爬虫')
     parser.add_argument('--type', choices=['all', 'stock', 'company', 'financial', 'kline'],
                        default='all', help='爬取类型')
@@ -45,7 +43,6 @@ def main():
             for table, file_info in info.get('files', {}).items():
                 if file_info.get('exists'):
                     print(f"  {table}: {file_info['record_count']} 条记录")
-        return
     
     # 创建备份
     if args.backup:
@@ -54,28 +51,12 @@ def main():
             print("备份创建成功")
         else:
             print("备份创建失败")
-        return
     
     print(f"使用存储类型: {service.storage_type}")
     
-    try:
-        if args.type == 'all':
-            service.run_full_crawl()
-        elif args.type == 'stock':
-            service.run_stock_list_crawl()
-        elif args.type == 'company':
-            service.run_company_info_crawl()
-        elif args.type == 'financial':
-            service.run_financial_crawl()
-        elif args.type == 'kline':
-            service.run_kline_crawl()
-        
-        logger.info("爬取任务完成")
-        
-    except Exception as e:
-        logger.error(f"爬取任务失败: {e}")
-        sys.exit(1)
 
-
-if __name__ == '__main__':
-    main()
+    service.run_full_crawl()
+    service.run_stock_list_crawl()
+    service.run_company_info_crawl()
+    service.run_financial_crawl()
+    service.run_kline_crawl()

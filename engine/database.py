@@ -4,8 +4,8 @@
 import pymysql
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
-from config.settings import Config
-from utils.logger import get_logger
+from engine.settings import Config
+from engine.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -200,7 +200,7 @@ class DataRepository:
     """统一数据仓库接口，支持数据库和CSV存储"""
     
     def __init__(self, storage_type: str = None):
-        from config.settings import Config
+        from engine.settings import Config
         
         # 确定存储类型
         if storage_type is None:
@@ -322,12 +322,35 @@ class DataRepository:
             if self.storage_type == 'database':
                 self.stock_repo.upsert_kline_data(kline_data)
             else:
-                # 保存K线数据
-                self.csv_storage.append_data([kline_data], 'kline_data', 
-                                            lambda x: f"{x['symbol']}_{x['timestamp']}_{x['period']}")
+                # 保存K线数据（按日期存储）
+                self.csv_storage.save_kline_data_by_date([kline_data])
             return True
         except Exception as e:
             logger.error(f"保存K线数据失败: {e}")
+            return False
+    
+    def save_kline_data_batch(self, kline_data_list: List[Dict[str, Any]], date_str: str = None) -> bool:
+        """
+        批量保存K线数据（按日期存储）
+        
+        Args:
+            kline_data_list: K线数据列表
+            date_str: 日期字符串，格式为YYYY-MM-DD，默认为今天
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            if self.storage_type == 'database':
+                # 数据库模式，逐条保存
+                for kline_data in kline_data_list:
+                    self.stock_repo.upsert_kline_data(kline_data)
+            else:
+                # CSV模式，按日期批量保存
+                self.csv_storage.save_kline_data_by_date(kline_data_list, date_str)
+            return True
+        except Exception as e:
+            logger.error(f"批量保存K线数据失败: {e}")
             return False
     
     def log_kline_processing(self, symbol: str) -> bool:

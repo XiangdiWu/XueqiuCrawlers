@@ -24,6 +24,8 @@ class Config:
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
             'cache-control': 'no-cache',
             'Connection': 'keep-alive',
+            'Host': 'xueqiu.com',
+            'Referer': 'https://xueqiu.com/hq',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
             'X-Requested-With': 'XMLHttpRequest'
         }
@@ -46,7 +48,7 @@ class Config:
     
     # 存储配置
     STORAGE_CONFIG = {
-        'type': 'database',  # 'database' 或 'csv'
+        'type': 'csv',  # 'database' 或 'csv'
         'csv_path': 'data/csv',  # CSV文件存储路径
         'csv_encoding': 'utf-8-sig',  # CSV编码，支持Excel
         'create_backup': True,  # 是否创建备份

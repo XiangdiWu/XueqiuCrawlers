@@ -3,10 +3,9 @@
 """
 import time
 import requests
-from utils.logger import logger
-from config.settings import Config
-from utils.cookie_manager import CookieManager
-from utils.manual_cookie import ManualCookieManager
+from engine.logger import logger
+from engine.settings import Config
+from engine.xueqiu_auth import get_authenticated_session
 
 
 class BaseCrawler:
@@ -15,31 +14,32 @@ class BaseCrawler:
     def __init__(self, data_repository=None):
         self.config = Config.XUEQIU_CONFIG
         self.crawler_config = Config.CRAWLER_CONFIG
-        self.session = requests.Session()
-        self.session.headers.update(self.config['headers'])
         self.logger = logger
         self.data_repo = data_repository
         
-        # 设置Cookie - 优先使用手动配置，其次尝试自动获取
-        cookies = ManualCookieManager.load_cookies()
+        # 使用新的认证系统获取会话
+        self.session = get_authenticated_session()
         
-        if ManualCookieManager.validate_cookies(cookies):
-            self.session.cookies.update(cookies)
-            user_id = cookies.get('u', '0')
-            if user_id == '0':
-                self.logger.info("使用手动配置的游客Cookie")
-            else:
-                self.logger.info(f"使用手动配置的登录Cookie (用户ID: {user_id})")
+        # 更新请求头
+        self.session.headers.update(self.config['headers'])
+        
+        # 检查认证状态
+        cookies = self.session.cookies.get_dict()
+        user_id = cookies.get('u', '0')
+        if user_id == '0':
+            self.logger.info("使用游客模式Cookie")
         else:
-            # 尝试从Chrome自动获取
-            auto_cookies = CookieManager.get_chrome_cookies()
-            if auto_cookies:
-                self.session.cookies.update(auto_cookies)
-                self.logger.info("成功加载Chrome自动获取的Cookie")
+            self.logger.info(f"使用登录Cookie (用户ID: {user_id})")
+        
+        self.logger.info(f"当前Cookie数量: {len(cookies)}")
+        
+        # 检查关键反爬Cookie
+        anti_crawler_cookies = ['acw_sc__v2', 'ACW-TC', 'ACWSCVI']
+        for cookie in anti_crawler_cookies:
+            if cookie in cookies:
+                self.logger.info(f"反爬Cookie {cookie}: {cookies[cookie][:20]}...")
             else:
-                self.logger.warning("未能获取任何Cookie，使用默认游客Cookie")
-                default_cookies = ManualCookieManager.get_default_cookies()
-                self.session.cookies.update(default_cookies)
+                self.logger.warning(f"缺少反爬Cookie: {cookie}")
     
     def make_request(self, url, max_retries=None):
         """
@@ -84,3 +84,25 @@ class BaseCrawler:
     def delay(self):
         """请求延迟"""
         time.sleep(self.crawler_config['request_delay'])
+    
+    def _get_xueqiu_anti_crawler_cookies(self):
+        """获取雪球反爬虫Cookie"""
+        try:
+            from utils.xueqiu_cookie_generator import XueqiuCookieGenerator
+            
+            generator = XueqiuCookieGenerator()
+            cookies = generator.get_anti_crawler_cookies()
+            
+            if cookies:
+                # 将获取到的Cookie设置到session
+                for key, value in cookies.items():
+                    if key in ['ACW-TC', 'ACWSCVI']:
+                        self.session.cookies.set(key, value, domain='.xueqiu.com')
+                
+                self.logger.info("成功获取并设置雪球反爬虫Cookie")
+            else:
+                self.logger.warning("未能获取雪球反爬虫Cookie")
+            
+        except Exception as e:
+            self.logger.warning(f"获取雪球反爬虫Cookie失败: {e}")
+            # 继续执行，使用默认Cookie
