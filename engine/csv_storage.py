@@ -22,8 +22,8 @@ class CSVStorage:
     def _ensure_directories(self):
         """确保目录存在"""
         os.makedirs(self.csv_path, exist_ok=True)
-        # 创建子目录
-        subdirs = ['stocks', 'companies', 'financial', 'kline']
+        # 创建子目录 - 匹配实际的文件夹结构
+        subdirs = ['company_info', 'financial', 'kline', 'stock_info', 'stock_list']
         for subdir in subdirs:
             os.makedirs(os.path.join(self.csv_path, subdir), exist_ok=True)
     
@@ -36,11 +36,13 @@ class CSVStorage:
     def _get_filepath(self, table_name: str, suffix: str = '') -> str:
         """获取完整文件路径"""
         filename = self._get_filename(table_name, suffix)
-        # 根据表名确定子目录
-        if table_name in ['stock_list', 'stock_info']:
-            subdir = 'stocks'
+        # 根据表名确定子目录 - 匹配实际的文件夹结构
+        if table_name == 'stock_list':
+            subdir = 'stock_list'
+        elif table_name in ['stock_info']:
+            subdir = 'stock_info'
         elif table_name == 'company_profile':
-            subdir = 'companies'
+            subdir = 'company_info'
         elif table_name in ['financial_data', 'financial_summary']:
             subdir = 'financial'
         elif table_name == 'kline_data':
@@ -51,6 +53,333 @@ class CSVStorage:
         if subdir:
             return os.path.join(self.csv_path, subdir, filename)
         return os.path.join(self.csv_path, filename)
+    
+    def get_stock_list_filepath_by_date(self, date_str: str = None) -> str:
+        """
+        根据日期获取股票列表文件路径 - stock_list/YYYY-MM-DD.csv格式
+        
+        Args:
+            date_str: 日期字符串，格式为YYYY-MM-DD，默认为今天
+            
+        Returns:
+            str: 股票列表文件路径
+        """
+        if date_str is None:
+            from datetime import datetime
+            date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        # 创建stock_list目录
+        stock_list_dir = os.path.join(self.csv_path, 'stock_list')
+        os.makedirs(stock_list_dir, exist_ok=True)
+        
+        filename = f"{date_str}.csv"
+        return os.path.join(stock_list_dir, filename)
+    
+    def save_stock_list_by_date(self, data: List[Dict[str, Any]], date_str: str = None) -> bool:
+        """
+        按日期保存股票列表 - 使用stock_list/YYYY-MM-DD.csv格式
+        
+        Args:
+            data: 股票数据列表
+            date_str: 日期字符串，格式YYYY-MM-DD，默认为今天
+            
+        Returns:
+            bool: 是否成功
+        """
+        if not data:
+            logger.warning("没有股票数据需要保存")
+            return False
+        
+        try:
+            if date_str is None:
+                from datetime import datetime
+                date_str = datetime.now().strftime('%Y-%m-%d')
+            
+            filepath = self.get_stock_list_filepath_by_date(date_str)
+            file_exists = os.path.exists(filepath)
+            
+            # 获取字段名
+            fieldnames = list(data[0].keys())
+            
+            with open(filepath, 'w', newline='', encoding=self.encoding) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(data)
+            
+            logger.info(f"成功保存 {len(data)} 条股票数据到 {filepath}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存股票列表失败: {e}")
+            return False
+    
+    def get_stock_list_by_date(self, date_str: str = None) -> List[Dict[str, Any]]:
+        """
+        获取指定日期的股票列表 - 从stock_list/YYYY-MM-DD.csv读取
+        
+        Args:
+            date_str: 日期字符串，格式YYYY-MM-DD，默认为今天
+            
+        Returns:
+            List[Dict]: 股票数据列表
+        """
+        try:
+            if date_str is None:
+                from datetime import datetime
+                date_str = datetime.now().strftime('%Y-%m-%d')
+            
+            filepath = self.get_stock_list_filepath_by_date(date_str)
+            
+            if not os.path.exists(filepath):
+                logger.warning(f"股票列表文件不存在: {filepath}")
+                return []
+            
+            data = []
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    data.append(dict(row))
+            
+            logger.info(f"从 {filepath} 读取了 {len(data)} 条股票数据")
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取股票列表失败: {e}")
+            return []
+    
+    def get_company_filepath_by_symbol(self, symbol: str) -> str:
+        """
+        根据证券代码获取公司信息文件路径
+        
+        Args:
+            symbol: 证券代码
+            
+        Returns:
+            str: 公司信息文件路径
+        """
+        filename = f"company_{symbol}.csv"
+        return os.path.join(self.csv_path, 'company_info', filename)
+    
+    def save_company_info_by_symbol(self, data: Dict[str, Any], symbol: str) -> bool:
+        """
+        按证券代码保存公司信息
+        
+        Args:
+            data: 公司信息数据
+            symbol: 证券代码
+            
+        Returns:
+            bool: 是否成功
+        """
+        if not data:
+            logger.warning(f"没有公司信息要保存: {symbol}")
+            return False
+        
+        try:
+            filepath = self.get_company_filepath_by_symbol(symbol)
+            
+            # 获取字段名
+            fieldnames = list(data.keys())
+            
+            with open(filepath, 'w', newline='', encoding=self.encoding) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerow(data)
+            
+            logger.info(f"成功保存公司信息到 {filepath}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存公司信息失败 {symbol}: {e}")
+            return False
+    
+    def get_company_info_by_symbol(self, symbol: str) -> Dict[str, Any]:
+        """
+        根据证券代码获取公司信息
+        
+        Args:
+            symbol: 证券代码
+            
+        Returns:
+            Dict: 公司信息数据
+        """
+        try:
+            filepath = self.get_company_filepath_by_symbol(symbol)
+            
+            if not os.path.exists(filepath):
+                logger.warning(f"公司信息文件不存在: {filepath}")
+                return {}
+            
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    return dict(row)
+            
+            return {}
+            
+        except Exception as e:
+            logger.error(f"读取公司信息失败 {symbol}: {e}")
+            return {}
+    
+    def get_stock_info_filepath_by_date(self, date_str: str = None, suffix: str = '') -> str:
+        """
+        根据日期获取股票信息文件路径
+        
+        Args:
+            date_str: 日期字符串，格式为YYYY-MM-DD，默认为今天
+            suffix: 文件名后缀
+            
+        Returns:
+            str: 股票信息文件路径
+        """
+        if date_str is None:
+            date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        if suffix:
+            filename = f"{date_str}_{suffix}.csv"
+        else:
+            filename = f"{date_str}.csv"
+        
+        return os.path.join(self.csv_path, 'stock_info', filename)
+    
+    def save_stock_info_by_date(self, data: List[Dict[str, Any]], date_str: str = None, suffix: str = '') -> bool:
+        """
+        按日期保存股票信息
+        
+        Args:
+            data: 股票信息数据列表
+            date_str: 日期字符串，格式YYYY-MM-DD，默认为今天
+            suffix: 文件名后缀
+            
+        Returns:
+            bool: 是否成功
+        """
+        if not data:
+            logger.warning("没有股票信息需要保存")
+            return False
+        
+        try:
+            if date_str is None:
+                date_str = datetime.now().strftime('%Y-%m-%d')
+            
+            filepath = self.get_stock_info_filepath_by_date(date_str, suffix)
+            
+            # 获取字段名
+            fieldnames = list(data[0].keys())
+            
+            with open(filepath, 'w', newline='', encoding=self.encoding) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(data)
+            
+            logger.info(f"成功保存 {len(data)} 条股票信息到 {filepath}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存股票信息失败: {e}")
+            return False
+    
+    def get_stock_info_by_date(self, date_str: str = None, suffix: str = '') -> List[Dict[str, Any]]:
+        """
+        获取指定日期的股票信息
+        
+        Args:
+            date_str: 日期字符串，格式YYYY-MM-DD，默认为今天
+            suffix: 文件名后缀
+            
+        Returns:
+            List[Dict]: 股票信息数据列表
+        """
+        try:
+            if date_str is None:
+                date_str = datetime.now().strftime('%Y-%m-%d')
+            
+            filepath = self.get_stock_info_filepath_by_date(date_str, suffix)
+            
+            if not os.path.exists(filepath):
+                logger.warning(f"股票信息文件不存在: {filepath}")
+                return []
+            
+            data = []
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    data.append(dict(row))
+            
+            logger.info(f"从 {filepath} 读取了 {len(data)} 条股票信息")
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取股票信息失败: {e}")
+            return []
+    
+    def get_company_profile_filepath(self) -> str:
+        """
+        获取公司概况文件路径
+        
+        Returns:
+            str: 公司概况文件路径
+        """
+        return os.path.join(self.csv_path, 'company_info', 'company_profile.csv')
+    
+    def save_company_profile(self, data: List[Dict[str, Any]]) -> bool:
+        """
+        保存公司概况数据
+        
+        Args:
+            data: 公司概况数据列表
+            
+        Returns:
+            bool: 是否成功
+        """
+        if not data:
+            logger.warning("没有公司概况数据需要保存")
+            return False
+        
+        try:
+            filepath = self.get_company_profile_filepath()
+            
+            # 获取字段名
+            fieldnames = list(data[0].keys())
+            
+            with open(filepath, 'w', newline='', encoding=self.encoding) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(data)
+            
+            logger.info(f"成功保存 {len(data)} 条公司概况数据到 {filepath}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存公司概况数据失败: {e}")
+            return False
+    
+    def get_company_profile(self) -> List[Dict[str, Any]]:
+        """
+        获取公司概况数据
+        
+        Returns:
+            List[Dict]: 公司概况数据列表
+        """
+        try:
+            filepath = self.get_company_profile_filepath()
+            
+            if not os.path.exists(filepath):
+                logger.warning(f"公司概况文件不存在: {filepath}")
+                return []
+            
+            data = []
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    data.append(dict(row))
+            
+            logger.info(f"从 {filepath} 读取了 {len(data)} 条公司概况数据")
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取公司概况数据失败: {e}")
+            return []
     
     def get_kline_filepath_by_date(self, date_str: str = None) -> str:
         """
@@ -434,3 +763,378 @@ class CSVStorage:
         except Exception as e:
             logger.error(f"清理旧文件失败: {e}")
             return False
+    
+    # ==================== 财务数据相关方法 ====================
+    
+    def get_financial_filepath_by_symbol(self, symbol: str) -> str:
+        """
+        根据证券代码获取财务数据文件路径
+        
+        Args:
+            symbol: 证券代码
+            
+        Returns:
+            str: 财务数据文件路径
+        """
+        filename = f"{symbol}.csv"
+        return os.path.join(self.csv_path, 'financial', filename)
+    
+    def save_financial_data_by_symbol(self, symbol: str, data: List[Dict[str, Any]]) -> bool:
+        """
+        按证券代码保存财务数据
+        
+        Args:
+            symbol: 证券代码
+            data: 财务数据列表
+            
+        Returns:
+            bool: 是否成功
+        """
+        if not data:
+            logger.warning(f"没有财务数据要保存: {symbol}")
+            return False
+        
+        try:
+            filepath = self.get_financial_filepath_by_symbol(symbol)
+            file_exists = os.path.exists(filepath)
+            
+            # 获取字段名
+            fieldnames = list(data[0].keys())
+            
+            with open(filepath, 'a', newline='', encoding=self.encoding) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                
+                # 如果文件不存在，写入表头
+                if not file_exists:
+                    writer.writeheader()
+                
+                # 写入数据
+                writer.writerows(data)
+            
+            logger.info(f"成功保存 {len(data)} 条财务数据到 {filepath}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存财务数据失败 {symbol}: {e}")
+            return False
+    
+    def get_financial_data_by_symbol(self, symbol: str) -> List[Dict[str, Any]]:
+        """
+        根据证券代码获取财务数据
+        
+        Args:
+            symbol: 证券代码
+            
+        Returns:
+            List[Dict]: 财务数据列表
+        """
+        try:
+            filepath = self.get_financial_filepath_by_symbol(symbol)
+            
+            if not os.path.exists(filepath):
+                logger.warning(f"财务数据文件不存在: {filepath}")
+                return []
+            
+            data = []
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    data.append(dict(row))
+            
+            logger.info(f"从 {filepath} 读取了 {len(data)} 条财务数据")
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取财务数据失败: {e}")
+            return []
+    
+    def get_financial_log_filepath(self) -> str:
+        """
+        获取财务数据处理日志文件路径
+        
+        Returns:
+            str: 日志文件路径
+        """
+        return os.path.join(self.csv_path, 'financial', 'financial_log.csv')
+    
+    def save_financial_log(self, log_data: Dict[str, Any]) -> bool:
+        """
+        保存财务数据处理日志
+        
+        Args:
+            log_data: 日志数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            filepath = self.get_financial_log_filepath()
+            file_exists = os.path.exists(filepath)
+            
+            # 获取字段名
+            fieldnames = ['compcode', 'reportdate', 'timestamp']
+            
+            with open(filepath, 'a', newline='', encoding=self.encoding) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                
+                # 如果文件不存在，写入表头
+                if not file_exists:
+                    writer.writeheader()
+                
+                # 写入数据
+                writer.writerow(log_data)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存财务日志失败: {e}")
+            return False
+    
+    def get_financial_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取财务数据处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            filepath = self.get_financial_log_filepath()
+            
+            if not os.path.exists(filepath):
+                return []
+            
+            data = []
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    data.append(dict(row))
+            
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取财务日志失败: {e}")
+            return []
+    
+    def get_latest_stock_info(self) -> List[Dict[str, Any]]:
+        """
+        获取最新的股票信息列表
+        
+        Returns:
+            List[Dict]: 股票信息列表
+        """
+        try:
+            # 获取最新的stock_info文件
+            stock_info_dir = os.path.join(self.csv_path, 'stock_info')
+            if not os.path.exists(stock_info_dir):
+                return []
+            
+            # 按修改时间排序，获取最新文件
+            files = []
+            for filename in os.listdir(stock_info_dir):
+                if filename.endswith('.csv'):
+                    filepath = os.path.join(stock_info_dir, filename)
+                    mtime = os.path.getmtime(filepath)
+                    files.append((mtime, filepath))
+            
+            if not files:
+                return []
+            
+            # 获取最新文件
+            latest_file = max(files, key=lambda x: x[0])[1]
+            
+            data = []
+            with open(latest_file, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    data.append(dict(row))
+            
+            logger.info(f"从最新文件 {os.path.basename(latest_file)} 读取了 {len(data)} 条股票信息")
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取最新股票信息失败: {e}")
+            return []
+    
+    # ==================== K线数据相关方法 ====================
+    
+    def get_kline_log_filepath(self) -> str:
+        """
+        获取K线数据处理日志文件路径
+        
+        Returns:
+            str: 日志文件路径
+        """
+        return os.path.join(self.csv_path, 'kline', 'kline_log.csv')
+    
+    def save_kline_log(self, log_data: Dict[str, Any]) -> bool:
+        """
+        保存K线数据处理日志
+        
+        Args:
+            log_data: 日志数据
+            
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            filepath = self.get_kline_log_filepath()
+            file_exists = os.path.exists(filepath)
+            
+            # 获取字段名
+            fieldnames = ['symbol', 'timestamp', 'crawl_date']
+            
+            with open(filepath, 'a', newline='', encoding=self.encoding) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                
+                # 如果文件不存在，写入表头
+                if not file_exists:
+                    writer.writeheader()
+                
+                # 写入数据
+                writer.writerow(log_data)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存K线日志失败: {e}")
+            return False
+    
+    def get_kline_logs(self) -> List[Dict[str, Any]]:
+        """
+        获取K线数据处理日志
+        
+        Returns:
+            List[Dict]: 日志数据列表
+        """
+        try:
+            filepath = self.get_kline_log_filepath()
+            
+            if not os.path.exists(filepath):
+                return []
+            
+            data = []
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    data.append(dict(row))
+            
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取K线日志失败: {e}")
+            return []
+    
+    def get_kline_data_by_symbol_and_date(self, symbol: str, date_str: str) -> List[Dict[str, Any]]:
+        """
+        根据股票代码和日期获取K线数据
+        
+        Args:
+            symbol: 股票代码
+            date_str: 日期字符串，格式YYYY-MM-DD
+            
+        Returns:
+            List[Dict]: K线数据列表
+        """
+        try:
+            filepath = self.get_kline_filepath_by_date(date_str)
+            
+            if not os.path.exists(filepath):
+                return []
+            
+            data = []
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    if row.get('symbol') == symbol:
+                        data.append(dict(row))
+            
+            logger.info(f"从 {filepath} 读取了 {len(data)} 条 {symbol} 的K线数据")
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取K线数据失败 {symbol} {date_str}: {e}")
+            return []
+    
+    def get_kline_data_by_symbol(self, symbol: str, start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
+        """
+        根据股票代码获取K线数据（支持日期范围）
+        
+        Args:
+            symbol: 股票代码
+            start_date: 开始日期，格式YYYY-MM-DD
+            end_date: 结束日期，格式YYYY-MM-DD
+            
+        Returns:
+            List[Dict]: K线数据列表
+        """
+        try:
+            kline_dir = os.path.join(self.csv_path, 'kline')
+            if not os.path.exists(kline_dir):
+                return []
+            
+            # 获取所有K线数据文件
+            files = []
+            for filename in os.listdir(kline_dir):
+                if filename.endswith('.csv') and filename != 'kline_log.csv':
+                    # 提取日期
+                    date_str = filename.replace('.csv', '')
+                    if start_date and date_str < start_date:
+                        continue
+                    if end_date and date_str > end_date:
+                        continue
+                    files.append(date_str)
+            
+            # 按日期排序
+            files.sort()
+            
+            all_data = []
+            for date_str in files:
+                data = self.get_kline_data_by_symbol_and_date(symbol, date_str)
+                all_data.extend(data)
+            
+            logger.info(f"获取到 {symbol} 的K线数据，共 {len(all_data)} 条记录")
+            return all_data
+            
+        except Exception as e:
+            logger.error(f"获取K线数据失败 {symbol}: {e}")
+            return []
+    
+    def get_latest_stock_list(self) -> List[Dict[str, Any]]:
+        """
+        获取最新的股票列表
+        
+        Returns:
+            List[Dict]: 股票列表数据
+        """
+        try:
+            # 获取最新的stock_list文件
+            stock_list_dir = os.path.join(self.csv_path, 'stock_list')
+            if not os.path.exists(stock_list_dir):
+                return []
+            
+            # 按修改时间排序，获取最新文件
+            files = []
+            for filename in os.listdir(stock_list_dir):
+                if filename.endswith('.csv'):
+                    filepath = os.path.join(stock_list_dir, filename)
+                    mtime = os.path.getmtime(filepath)
+                    files.append((mtime, filepath))
+            
+            if not files:
+                return []
+            
+            # 获取最新文件
+            latest_file = max(files, key=lambda x: x[0])[1]
+            
+            data = []
+            with open(latest_file, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    data.append(dict(row))
+            
+            logger.info(f"从最新文件 {os.path.basename(latest_file)} 读取了 {len(data)} 条股票列表")
+            return data
+            
+        except Exception as e:
+            logger.error(f"读取最新股票列表失败: {e}")
+            return []

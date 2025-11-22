@@ -213,9 +213,10 @@ $RECYCLE.BIN/
 # Project specific
 logs/
 *.log
-data/csv/*.csv
+*.csv
 data/backup/
 cache/
+recycling/
 temp/
 tmp/
 

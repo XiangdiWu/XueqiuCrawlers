@@ -333,11 +333,8 @@ class DataRepository:
             if self.storage_type == 'database':
                 self.stock_repo.upsert_stock_basic_info(stock_data)
             else:
-                # CSV模式，追加数据
-                success = self.csv_storage.append_data([stock_data], 'stock_list', 'symbol')
-                if success:
-                    # 同时保存到详细信息表
-                    self.csv_storage.append_data([stock_data], 'stock_info', 'symbol')
+                # CSV模式，追加数据到stock_info目录
+                success = self.csv_storage.append_data([stock_data], 'stock_info', 'symbol')
             return True
         except Exception as e:
             logger.error(f"保存股票基本信息失败: {e}")
@@ -349,11 +346,38 @@ class DataRepository:
             if self.storage_type == 'database':
                 self.stock_repo.upsert_company_info(company_data)
             else:
-                self.csv_storage.append_data([company_data], 'company_profile', 'compcode')
+                # CSV模式 - 按证券代码单独存储
+                symbol = company_data.get('compcode', '')
+                if symbol:
+                    self.csv_storage.save_company_info_by_symbol(company_data, symbol)
+                else:
+                    # 兼容旧模式，保存到company_profile.csv
+                    self.csv_storage.save_company_profile([company_data])
             return True
         except Exception as e:
             logger.error(f"保存公司信息失败: {e}")
             return False
+    
+    def get_company_info_by_symbol(self, symbol: str) -> Dict[str, Any]:
+        """
+        根据证券代码获取公司信息
+        
+        Args:
+            symbol: 证券代码
+            
+        Returns:
+            Dict: 公司信息数据
+        """
+        try:
+            if self.storage_type == 'database':
+                sql = "SELECT * FROM comp WHERE compcode = %s"
+                result = self.db_manager.execute_query(sql, (symbol,))
+                return result[0] if result else {}
+            else:
+                return self.csv_storage.get_company_info_by_symbol(symbol)
+        except Exception as e:
+            logger.error(f"获取公司信息失败 {symbol}: {e}")
+            return {}
     
     def save_finmain_data(self, finmain_data: Dict[str, Any]) -> bool:
         """保存主要财务数据"""
@@ -366,9 +390,8 @@ class DataRepository:
                     finmain_data['reportdate']
                 )
             else:
-                # 保存财务数据
-                self.csv_storage.append_data([finmain_data], 'financial_data', 
-                                            lambda x: f"{x['compcode']}_{x['reportdate']}")
+                # 保存财务数据到financial目录
+                self.csv_storage.save_to_csv([finmain_data], 'financial_data', mode='a')
                 # 记录处理日志
                 import pandas as pd
                 log_data = {
@@ -376,8 +399,7 @@ class DataRepository:
                     'reportdate': finmain_data['reportdate'],
                     'timestamp': str(pd.Timestamp.now())
                 }
-                self.csv_storage.append_data([log_data], 'finmain_log', 
-                                            lambda x: f"{x['compcode']}_{x['reportdate']}")
+                self.csv_storage.save_to_csv([log_data], 'finmain_log', mode='a')
             return True
         except Exception as e:
             logger.error(f"保存财务数据失败: {e}")
