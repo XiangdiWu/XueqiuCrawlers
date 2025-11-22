@@ -6,30 +6,97 @@ from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 from config.settings import Config
 from engine.logger import get_logger
+import threading
+import time
 
 logger = get_logger(__name__)
 
 
 class DatabaseManager:
-    """数据库管理器"""
+    """数据库管理器 - 支持连接池"""
     
-    def __init__(self):
+    def __init__(self, pool_size=5):
         self.config = Config.DATABASE_CONFIG
+        self.pool_size = pool_size
+        self._pool = []
+        self._lock = threading.Lock()
+        self._created_connections = 0
+        self._max_connections = pool_size * 2  # 最大连接数
+    
+    def _create_connection(self):
+        """创建新连接"""
+        try:
+            conn = pymysql.connect(**self.config)
+            self._created_connections += 1
+            logger.debug(f"创建新数据库连接，当前连接数: {self._created_connections}")
+            return conn
+        except Exception as e:
+            logger.error(f"创建数据库连接失败: {e}")
+            raise
     
     @contextmanager
     def get_connection(self):
-        """获取数据库连接的上下文管理器"""
+        """获取数据库连接的上下文管理器 - 支持连接池"""
         connection = None
         try:
-            connection = pymysql.connect(**self.config)
+            # 尝试从连接池获取连接
+            with self._lock:
+                if self._pool:
+                    connection = self._pool.pop()
+                    logger.debug(f"从连接池获取连接，剩余: {len(self._pool)}")
+                elif self._created_connections < self._max_connections:
+                    connection = self._create_connection()
+                else:
+                    # 等待可用连接
+                    logger.warning("连接池已满，等待可用连接...")
+                    time.sleep(0.1)
+                    # 递归调用获取连接
+                    with self.get_connection() as conn:
+                        yield conn
+                        return
+            
+            # 检查连接是否有效
+            if not self._is_connection_valid(connection):
+                connection.close()
+                connection = self._create_connection()
+            
             yield connection
+            
         except Exception as e:
             if connection:
                 connection.rollback()
             raise e
         finally:
             if connection:
-                connection.close()
+                # 将连接放回连接池
+                with self._lock:
+                    if len(self._pool) < self.pool_size and self._is_connection_valid(connection):
+                        self._pool.append(connection)
+                        logger.debug(f"连接放回池中，当前池大小: {len(self._pool)}")
+                    else:
+                        connection.close()
+                        self._created_connections -= 1
+                        logger.debug(f"关闭连接，当前连接数: {self._created_connections}")
+    
+    def _is_connection_valid(self, connection):
+        """检查连接是否有效"""
+        try:
+            connection.ping(reconnect=False)
+            return True
+        except:
+            return False
+    
+    def close_all_connections(self):
+        """关闭所有连接"""
+        with self._lock:
+            for conn in self._pool:
+                try:
+                    conn.close()
+                except:
+                    pass
+            self._pool.clear()
+            self._created_connections = 0
+            logger.info("所有数据库连接已关闭")
     
     def execute_query(self, sql, params=None):
         """执行查询语句"""

@@ -73,7 +73,7 @@ class StockInfoCrawler(BaseCrawler):
             # 处理股票数据 - 使用原始数据结构（数组形式）
             stock_list = data.get('data', [])
             for stock_item in stock_list:
-                stock_data = self._parse_stock_data_legacy(stock_item, stock_type)
+                stock_data = self._parse_stock_data(stock_item, stock_type)
                 try:
                     self.data_repo.save_stock_basic_info(stock_data)
                     stock_count += 1
@@ -84,24 +84,10 @@ class StockInfoCrawler(BaseCrawler):
             self.logger.info(f"{stock_type}第{page}页完成，累计{stock_count}支")
             self.delay()
     
+
+    
     def _parse_stock_data(self, stock_item, stock_type):
         """解析股票数据"""
-        return {
-            'symbol': stock_item[0],
-            'code': stock_item[0],
-            'name': stock_item[1],
-            'current': stock_item[2] or 0,
-            'percent': stock_item[4] or 0,
-            'high52w': stock_item[13] or 0,
-            'low52w': stock_item[14] or 0,
-            'marketcapital': stock_item[11] or 0,
-            'amount': stock_item[10] or 0,
-            'volume': stock_item[9] or 0,
-            'pe_ttm': stock_item[12] or 0
-        }
-    
-    def _parse_stock_data_legacy(self, stock_item, stock_type):
-        """解析股票数据（recycling版本 - 数组形式）"""
         return {
             'symbol': stock_item[0],
             'code': stock_item[0],

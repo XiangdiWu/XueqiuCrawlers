@@ -109,15 +109,16 @@ class CSVStorage:
             return False
     
     def save_to_csv(self, data: List[Dict[str, Any]], table_name: str, 
-                    mode: str = 'a', suffix: str = '') -> bool:
+                    mode: str = 'a', suffix: str = '', chunk_size: int = 10000) -> bool:
         """
-        保存数据到CSV文件
+        保存数据到CSV文件 - 支持分块处理大数据
         
         Args:
             data: 要保存的数据
             table_name: 表名
             mode: 写入模式 ('a'追加, 'w'覆盖)
             suffix: 文件名后缀
+            chunk_size: 分块大小，大数据时使用
         
         Returns:
             bool: 是否成功
@@ -133,6 +134,12 @@ class CSVStorage:
             # 获取字段名
             fieldnames = list(data[0].keys())
             
+            # 大数据分块处理
+            if len(data) > chunk_size:
+                logger.info(f"大数据量 {len(data)} 条，分块处理 (块大小: {chunk_size})")
+                return self._save_chunked_data(data, filepath, fieldnames, mode, file_exists, chunk_size)
+            
+            # 小数据直接处理
             with open(filepath, mode, newline='', encoding=self.encoding) as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 
@@ -150,13 +157,40 @@ class CSVStorage:
             logger.error(f"保存CSV文件失败: {e}")
             return False
     
-    def read_from_csv(self, table_name: str, suffix: str = '') -> List[Dict[str, Any]]:
+    def _save_chunked_data(self, data, filepath, fieldnames, mode, file_exists, chunk_size):
+        """分块保存大数据"""
+        try:
+            with open(filepath, mode, newline='', encoding=self.encoding) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                
+                # 如果文件不存在或覆盖模式，写入表头
+                if not file_exists or mode == 'w':
+                    writer.writeheader()
+                
+                # 分块写入
+                for i in range(0, len(data), chunk_size):
+                    chunk = data[i:i + chunk_size]
+                    writer.writerows(chunk)
+                    logger.debug(f"写入第 {i//chunk_size + 1} 块，{len(chunk)} 条数据")
+                    
+                    # 定期刷新缓冲区
+                    csvfile.flush()
+            
+            logger.info(f"分块保存完成，共 {len(data)} 条数据到 {filepath}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"分块保存失败: {e}")
+            return False
+    
+    def read_from_csv(self, table_name: str, suffix: str = '', chunk_size: int = 50000) -> List[Dict[str, Any]]:
         """
-        从CSV文件读取数据
+        从CSV文件读取数据 - 支持分块读取大文件
         
         Args:
             table_name: 表名
             suffix: 文件名后缀
+            chunk_size: 分块大小，大文件时使用
         
         Returns:
             List[Dict]: 数据列表
@@ -168,6 +202,13 @@ class CSVStorage:
                 logger.warning(f"CSV文件不存在: {filepath}")
                 return []
             
+            # 检查文件大小，决定是否分块处理
+            file_size = os.path.getsize(filepath)
+            if file_size > 50 * 1024 * 1024:  # 50MB以上使用分块
+                logger.info(f"大文件检测 ({file_size/1024/1024:.1f}MB)，使用分块读取")
+                return self._read_chunked_data(filepath, chunk_size)
+            
+            # 小文件直接读取
             data = []
             with open(filepath, 'r', encoding=self.encoding) as csvfile:
                 reader = csv.DictReader(csvfile)
@@ -179,6 +220,41 @@ class CSVStorage:
             
         except Exception as e:
             logger.error(f"读取CSV文件失败: {e}")
+            return []
+    
+    def _read_chunked_data(self, filepath, chunk_size):
+        """分块读取大文件"""
+        data = []
+        try:
+            with open(filepath, 'r', encoding=self.encoding) as csvfile:
+                reader = csv.DictReader(csvfile)
+                chunk_count = 0
+                
+                while True:
+                    chunk = []
+                    for _ in range(chunk_size):
+                        try:
+                            row = next(reader)
+                            chunk.append(dict(row))
+                        except StopIteration:
+                            break
+                    
+                    if not chunk:
+                        break
+                    
+                    data.extend(chunk)
+                    chunk_count += 1
+                    logger.debug(f"读取第 {chunk_count} 块，{len(chunk)} 条数据")
+                    
+                    # 内存管理：如果数据量太大，可以考虑流式处理
+                    if len(data) > 1000000:  # 100万条数据警告
+                        logger.warning("数据量过大，建议使用流式处理")
+            
+            logger.info(f"分块读取完成，共 {len(data)} 条数据")
+            return data
+            
+        except Exception as e:
+            logger.error(f"分块读取失败: {e}")
             return []
     
     def append_data(self, data: List[Dict[str, Any]], table_name: str, 

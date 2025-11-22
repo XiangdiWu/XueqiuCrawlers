@@ -85,24 +85,3 @@ class BaseCrawler:
         """请求延迟"""
         time.sleep(self.crawler_config['request_delay'])
     
-    def _get_xueqiu_anti_crawler_cookies(self):
-        """获取雪球反爬虫Cookie"""
-        try:
-            from utils.xueqiu_cookie_generator import XueqiuCookieGenerator
-            
-            generator = XueqiuCookieGenerator()
-            cookies = generator.get_anti_crawler_cookies()
-            
-            if cookies:
-                # 将获取到的Cookie设置到session
-                for key, value in cookies.items():
-                    if key in ['ACW-TC', 'ACWSCVI']:
-                        self.session.cookies.set(key, value, domain='.xueqiu.com')
-                
-                self.logger.info("成功获取并设置雪球反爬虫Cookie")
-            else:
-                self.logger.warning("未能获取雪球反爬虫Cookie")
-            
-        except Exception as e:
-            self.logger.warning(f"获取雪球反爬虫Cookie失败: {e}")
-            # 继续执行，使用默认Cookie

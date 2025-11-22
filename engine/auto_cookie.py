@@ -12,6 +12,7 @@ import json
 import time
 import subprocess
 import tempfile
+import signal
 from datetime import datetime
 
 # 添加项目根目录到Python路径
@@ -118,26 +119,45 @@ class AutoCookieGenerator:
             # 创建JavaScript代码
             js_code = self._get_acw_sc_v2_js()
             
-            # 执行JavaScript
-            result = subprocess.run(
-                ['node', '-e', js_code],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
+            # 执行JavaScript，添加更严格的资源控制
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as js_file:
+                js_file.write(js_code)
+                js_file_path = js_file.name
             
-            if result.returncode == 0:
-                acw_sc_v2 = result.stdout.strip()
-                if acw_sc_v2:
-                    logger.info(f"JavaScript生成acw_sc__v2成功: {acw_sc_v2}")
-                    return acw_sc_v2
-                else:
-                    logger.warning("JavaScript返回空值")
-            else:
-                logger.error(f"JavaScript执行失败: {result.stderr}")
+            try:
+                result = subprocess.run(
+                    ['node', js_file_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,  # 减少超时时间
+                    preexec_fn=os.setsid if os.name != 'nt' else None  # 创建新的进程组
+                )
                 
-        except subprocess.TimeoutExpired:
-            logger.error("JavaScript执行超时")
+                if result.returncode == 0:
+                    acw_sc_v2 = result.stdout.strip()
+                    if acw_sc_v2 and len(acw_sc_v2) > 10:  # 基本长度验证
+                        logger.info(f"JavaScript生成acw_sc__v2成功: {acw_sc_v2[:20]}...")
+                        return acw_sc_v2
+                    else:
+                        logger.warning("JavaScript返回空值或格式无效")
+                else:
+                    logger.error(f"JavaScript执行失败: {result.stderr}")
+                    
+            except subprocess.TimeoutExpired:
+                logger.error("JavaScript执行超时")
+                # 强制终止进程组
+                try:
+                    if os.name != 'nt':
+                        os.killpg(os.getpgid(result.pid), signal.SIGTERM)
+                except:
+                    pass
+            finally:
+                # 清理临时文件
+                try:
+                    os.unlink(js_file_path)
+                except:
+                    pass
+                    
         except Exception as e:
             logger.error(f"JavaScript执行异常: {e}")
         

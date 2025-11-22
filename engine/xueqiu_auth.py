@@ -25,6 +25,8 @@ class XueqiuAuth:
     def __init__(self):
         self.cookie_file = "config/xueqiu_cookies.json"
         self.session = None
+        self.session_created_time = None
+        self.session_max_age = 3600  # 1小时后重新创建session
     
     def get_cookies(self, force_refresh=False):
         """
@@ -183,10 +185,26 @@ class XueqiuAuth:
             }
     
     def get_session(self):
-        """获取带有认证Cookie的会话"""
-        if self.session is None:
-            import requests
+        """获取带有认证Cookie的会话 - 支持会话过期管理"""
+        import requests
+        import time
+        
+        current_time = time.time()
+        
+        # 检查是否需要重新创建session
+        if (self.session is None or 
+            self.session_created_time is None or 
+            current_time - self.session_created_time > self.session_max_age):
             
+            # 清理旧session
+            if self.session is not None:
+                try:
+                    self.session.close()
+                    logger.debug("关闭旧session")
+                except:
+                    pass
+            
+            # 创建新session
             self.session = requests.Session()
             cookies = self.get_cookies()
             self.session.cookies.update(cookies)
@@ -202,67 +220,25 @@ class XueqiuAuth:
                 'X-Requested-With': 'XMLHttpRequest',
                 'cache-control': 'no-cache'
             })
+            
+            self.session_created_time = current_time
+            logger.info("创建新的认证session")
         
         return self.session
     
-    def manual_login(self):
-        """手动登录流程"""
-        print("🔐 雪球手动登录流程")
-        print("=" * 40)
-        print("此流程将帮助您手动获取登录Cookie")
-        print()
-        
-        print("📋 步骤1: 登录雪球网站")
-        print("1. 在浏览器中打开: https://xueqiu.com")
-        print("2. 登录您的雪球账号")
-        print("3. 登录成功后，按回车继续")
-        input()
-        
-        print("\n📋 步骤2: 获取Cookie")
-        print("1. 按F12打开开发者工具")
-        print("2. 切换到Application标签")
-        print("3. 左侧选择Storage > Cookies > https://xueqiu.com")
-        print("4. 找到以下关键Cookie并复制其值:")
-        print("   - u (用户ID)")
-        print("   - s (会话ID)")
-        print("   - xq_a_token (访问令牌，如果有)")
-        print("   - xq_id_token (身份令牌，如果有)")
-        print()
-        
-        cookies = {}
-        
-        # 获取关键Cookie
-        key_cookies = ['u', 's', 'xq_a_token', 'xq_id_token']
-        for key in key_cookies:
-            value = input(f"请输入 {key} 的值 (留空跳过): ").strip()
-            if value:
-                cookies[key] = value
-        
-        # 获取完整Cookie字符串（可选）
-        print("\n或者直接粘贴完整的Cookie字符串:")
-        cookie_string = input("Cookie字符串 (可选): ").strip()
-        
-        if cookie_string:
+    def cleanup_session(self):
+        """清理session资源"""
+        if self.session is not None:
             try:
-                for item in cookie_string.split(';'):
-                    if '=' in item:
-                        key, value = item.strip().split('=', 1)
-                        cookies[key] = value
+                self.session.close()
+                logger.info("session已清理")
             except:
-                print("Cookie字符串格式错误")
-        
-        if cookies:
-            # 验证并保存
-            if self._validate_cookies(cookies):
-                self._save_cookies(cookies)
-                print("\n✅ Cookie配置成功！")
-                return True
-            else:
-                print("\n❌ Cookie验证失败")
-                return False
-        else:
-            print("\n❌ 未输入任何Cookie")
-            return False
+                pass
+            finally:
+                self.session = None
+                self.session_created_time = None
+    
+
     
     def test_auth(self):
         """测试认证状态"""
@@ -335,9 +311,14 @@ def get_authenticated_session():
 
 
 def setup_auth():
-    """设置认证"""
-    auth = get_auth()
-    return auth.manual_login()
+    """设置认证 - 重定向到get_cookie.py"""
+    print("🔐 Cookie设置")
+    print("=" * 30)
+    print("请运行以下命令获取Cookie:")
+    print("   python get_cookie.py")
+    print()
+    print("该命令将提供详细的Cookie获取引导")
+    return False
 
 
 def test_auth():

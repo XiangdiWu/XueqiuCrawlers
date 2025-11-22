@@ -1,7 +1,7 @@
 """
 爬虫服务层
 """
-from crawlers.stock_info_crawler import StockCrawler
+from crawlers.stock_info_crawler import StockInfoCrawler
 from crawlers.financial_crawler import FinancialCrawler
 from crawlers.kline_crawler import KlineCrawler
 from engine.logger import logger
@@ -21,7 +21,7 @@ class CrawlerService:
         self.data_repo = DataRepository(storage_type)
         
         # 初始化爬虫，传入数据仓库
-        self.stock_crawler = StockCrawler(self.data_repo)
+        self.stock_crawler = StockInfoCrawler(self.data_repo)
         self.financial_crawler = FinancialCrawler(self.data_repo)
         self.kline_crawler = KlineCrawler(self.data_repo)
         self.logger = logger
@@ -42,7 +42,7 @@ class CrawlerService:
         self.data_repo = DataRepository(new_storage_type)
         
         # 重新初始化爬虫
-        self.stock_crawler = StockCrawler(self.data_repo)
+        self.stock_crawler = StockInfoCrawler(self.data_repo)
         self.financial_crawler = FinancialCrawler(self.data_repo)
         self.kline_crawler = KlineCrawler(self.data_repo)
         
